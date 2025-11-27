@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Asset, AssetCategory, AssetStatus, InventoryViewProps } from '../types';
-import { Box, Wrench, CheckCircle2, AlertTriangle, Search, Plus, X, MoreVertical, Trash, Calendar, User as UserIcon, LogOut, LogIn, FileText, QrCode, Scan } from 'lucide-react';
+import { Box, Wrench, CheckCircle2, AlertTriangle, Search, Plus, X, MoreVertical, Trash, Calendar, User as UserIcon, LogOut, LogIn, FileText, QrCode, Loader2 } from 'lucide-react';
 
 const Motion = motion as any;
 
@@ -12,7 +12,10 @@ const InventoryView: React.FC<InventoryViewProps> = ({ assets, users, onAddAsset
   const [activeCategory, setActiveCategory] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   
-  // Action Modal State (Check Out / Maintenance)
+  // Loading states
+  const [isSaving, setIsSaving] = useState(false);
+  
+  // Action Modal State
   const [actionAsset, setActionAsset] = useState<Asset | null>(null);
   const [actionType, setActionType] = useState<'CHECK_OUT' | 'MAINTENANCE' | null>(null);
   const [actionForm, setActionForm] = useState({ userId: '', returnDate: '', notes: '' });
@@ -34,21 +37,26 @@ const InventoryView: React.FC<InventoryViewProps> = ({ assets, users, onAddAsset
       ...configCategories.map(c => ({ id: c, label: c }))
   ];
 
-  const handleSave = () => { /* ... existing logic ... */ 
+  const handleSave = async () => {
       if (onAddAsset && newAsset.name) {
-          onAddAsset({
-              id: `a-${Date.now()}`,
-              name: newAsset.name!,
-              category: newAsset.category as AssetCategory,
-              status: (newAsset.status || 'AVAILABLE') as AssetStatus,
-              serialNumber: newAsset.serialNumber || '',
-          });
-          setIsAddModalOpen(false);
-          setNewAsset({ status: 'AVAILABLE', category: configCategories[0], serialNumber: '' });
+          setIsSaving(true);
+          try {
+              await onAddAsset({
+                  id: `a-${Date.now()}`,
+                  name: newAsset.name!,
+                  category: newAsset.category as AssetCategory,
+                  status: (newAsset.status || 'AVAILABLE') as AssetStatus,
+                  serialNumber: newAsset.serialNumber || '',
+              });
+              setIsAddModalOpen(false);
+              setNewAsset({ status: 'AVAILABLE', category: configCategories[0], serialNumber: '' });
+          } finally {
+              setIsSaving(false);
+          }
       }
   };
 
-  const openActionModal = (asset: Asset, type: 'CHECK_OUT' | 'MAINTENANCE') => { /* ... existing logic ... */ 
+  const openActionModal = (asset: Asset, type: 'CHECK_OUT' | 'MAINTENANCE') => {
       setActionAsset(asset);
       setActionType(type);
       setActiveMenu(null);
@@ -57,26 +65,31 @@ const InventoryView: React.FC<InventoryViewProps> = ({ assets, users, onAddAsset
       setActionForm({ userId: users[0]?.id || '', returnDate: tomorrow.toISOString().split('T')[0], notes: '' });
   };
 
-  const handleActionSubmit = () => { /* ... existing logic ... */ 
+  const handleActionSubmit = async () => {
       if (onUpdateAsset && actionAsset) {
-          let updatedAsset = { ...actionAsset };
-          if (actionType === 'CHECK_OUT') {
-              updatedAsset.status = 'IN_USE';
-              updatedAsset.assignedToUserId = actionForm.userId;
-              updatedAsset.returnDate = actionForm.returnDate;
-          } else if (actionType === 'MAINTENANCE') {
-              updatedAsset.status = 'MAINTENANCE'; 
-              updatedAsset.notes = actionForm.notes;
+          setIsSaving(true);
+          try {
+              let updatedAsset = { ...actionAsset };
+              if (actionType === 'CHECK_OUT') {
+                  updatedAsset.status = 'IN_USE';
+                  updatedAsset.assignedToUserId = actionForm.userId;
+                  updatedAsset.returnDate = actionForm.returnDate;
+              } else if (actionType === 'MAINTENANCE') {
+                  updatedAsset.status = 'MAINTENANCE'; 
+                  updatedAsset.notes = actionForm.notes;
+              }
+              await onUpdateAsset(updatedAsset);
+              setActionAsset(null);
+              setActionType(null);
+          } finally {
+              setIsSaving(false);
           }
-          onUpdateAsset(updatedAsset);
-          setActionAsset(null);
-          setActionType(null);
       }
   };
 
-  const handleReturn = (asset: Asset) => { /* ... existing logic ... */ 
+  const handleReturn = async (asset: Asset) => {
        if (onUpdateAsset) {
-           onUpdateAsset({
+           await onUpdateAsset({
                ...asset,
                status: 'AVAILABLE',
                assignedToUserId: undefined,
@@ -87,7 +100,7 @@ const InventoryView: React.FC<InventoryViewProps> = ({ assets, users, onAddAsset
        }
   };
 
-  const handleDelete = (e: React.MouseEvent, asset: Asset) => { /* ... existing logic ... */ 
+  const handleDelete = (e: React.MouseEvent, asset: Asset) => {
       e.preventDefault();
       e.stopPropagation();
       if (!window.confirm(`Permanently delete '${asset.name}'?`)) { setActiveMenu(null); return; }
@@ -105,13 +118,11 @@ const InventoryView: React.FC<InventoryViewProps> = ({ assets, users, onAddAsset
   // QR Scan Simulation
   const handleScanQR = () => {
       setIsScanning(true);
-      // Simulate detection after 2 seconds
       setTimeout(() => {
           setIsScanning(false);
-          // Pick a random asset to simulate finding
           const randomAsset = assets[Math.floor(Math.random() * assets.length)];
           if (randomAsset) {
-              setSearchTerm(randomAsset.name); // Filter view to this asset
+              setSearchTerm(randomAsset.name);
               if(showToast) showToast(`Found: ${randomAsset.name}`, 'SUCCESS');
           } else {
               if(showToast) showToast('No asset found.', 'ERROR');
@@ -119,13 +130,20 @@ const InventoryView: React.FC<InventoryViewProps> = ({ assets, users, onAddAsset
       }, 2000);
   };
 
+  // Improved Search Logic
   const filteredAssets = assets.filter(a => {
       const matchesCategory = activeCategory === 'ALL' || a.category === activeCategory;
-      const matchesSearch = a.name.toLowerCase().includes(searchTerm.toLowerCase()) || (a.serialNumber || '').toLowerCase().includes(searchTerm.toLowerCase());
-      return matchesCategory && matchesSearch;
+      if (!searchTerm) return matchesCategory;
+      
+      const term = searchTerm.toLowerCase();
+      const matchesName = a.name.toLowerCase().includes(term);
+      const matchesSerial = (a.serialNumber || '').toLowerCase().includes(term);
+      const matchesUser = a.assignedToUserId ? users.find(u => u.id === a.assignedToUserId)?.name.toLowerCase().includes(term) : false;
+      
+      return matchesCategory && (matchesName || matchesSerial || matchesUser);
   });
 
-  const getStatusColor = (status: Asset['status']) => { /* ... existing ... */ 
+  const getStatusColor = (status: Asset['status']) => {
     const s = status || 'AVAILABLE';
     switch (s) {
       case 'AVAILABLE': return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
@@ -136,7 +154,7 @@ const InventoryView: React.FC<InventoryViewProps> = ({ assets, users, onAddAsset
     }
   };
 
-  const getStatusIcon = (status: Asset['status']) => { /* ... existing ... */ 
+  const getStatusIcon = (status: Asset['status']) => {
     const s = status || 'AVAILABLE';
     switch (s) {
       case 'AVAILABLE': return CheckCircle2;
@@ -161,7 +179,7 @@ const InventoryView: React.FC<InventoryViewProps> = ({ assets, users, onAddAsset
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-lumina-muted w-4 h-4 group-focus-within:text-lumina-accent transition-colors" />
                 <input 
                     type="text" 
-                    placeholder="Search serial or name..." 
+                    placeholder="Search serial, name, user..." 
                     value={searchTerm}
                     onChange={e => setSearchTerm(e.target.value)}
                     className="bg-lumina-surface border border-lumina-highlight rounded-xl pl-10 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-lumina-accent w-full md:w-64 transition-all font-sans"
@@ -308,13 +326,13 @@ const InventoryView: React.FC<InventoryViewProps> = ({ assets, users, onAddAsset
                          <button type="button" onClick={() => setIsAddModalOpen(false)}><X className="text-lumina-muted hover:text-white" /></button>
                      </div>
                      <div className="space-y-4">
+                         {/* ... inputs ... */}
                          <div>
                              <label className="text-xs uppercase text-lumina-muted font-bold block mb-1">Asset Name</label>
                              <input className="w-full bg-lumina-base border border-lumina-highlight rounded-lg p-3 text-white focus:border-lumina-accent outline-none" 
                                 value={newAsset.name || ''} onChange={e => setNewAsset({...newAsset, name: e.target.value})}
                              />
                          </div>
-                         {/* ... existing fields ... */}
                          <div className="grid grid-cols-2 gap-4">
                              <div>
                                 <label className="text-xs uppercase text-lumina-muted font-bold block mb-1">Category</label>
@@ -340,8 +358,13 @@ const InventoryView: React.FC<InventoryViewProps> = ({ assets, users, onAddAsset
                                 value={newAsset.serialNumber || ''} onChange={e => setNewAsset({...newAsset, serialNumber: e.target.value})}
                              />
                          </div>
-                         <button type="button" onClick={handleSave} className="w-full py-3 bg-lumina-accent text-lumina-base font-bold rounded-xl hover:bg-lumina-accent/90 transition-colors mt-4">
-                             Add to Inventory
+                         <button 
+                            type="button" 
+                            onClick={handleSave} 
+                            disabled={isSaving}
+                            className="w-full py-3 bg-lumina-accent text-lumina-base font-bold rounded-xl hover:bg-lumina-accent/90 transition-colors mt-4 flex items-center justify-center gap-2"
+                         >
+                             {isSaving ? <Loader2 className="animate-spin"/> : 'Add to Inventory'}
                          </button>
                      </div>
                  </Motion.div>
@@ -349,24 +372,7 @@ const InventoryView: React.FC<InventoryViewProps> = ({ assets, users, onAddAsset
           )}
       </AnimatePresence>
 
-      {/* Scan Overlay */}
-      <AnimatePresence>
-          {isScanning && (
-              <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black">
-                  <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="w-64 h-64 border-2 border-lumina-accent rounded-xl relative overflow-hidden">
-                          <div className="absolute top-0 left-0 w-full h-1 bg-lumina-accent animate-scan-y shadow-[0_0_10px_#bef264]"></div>
-                      </div>
-                  </div>
-                  <div className="absolute bottom-10 flex flex-col items-center">
-                      <p className="text-white font-bold mb-4 animate-pulse">Scanning...</p>
-                      <button onClick={() => setIsScanning(false)} className="bg-white text-black px-6 py-2 rounded-full font-bold">Cancel</button>
-                  </div>
-              </div>
-          )}
-      </AnimatePresence>
-
-      {/* Action Modal (Keep existing) */}
+      {/* Action Modal */}
       <AnimatePresence>
           {actionAsset && (
              <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -380,8 +386,7 @@ const InventoryView: React.FC<InventoryViewProps> = ({ assets, users, onAddAsset
                      <h2 className="text-xl font-bold text-white mb-2">
                          {actionType === 'CHECK_OUT' ? 'Check Out Equipment' : 'Report Issue / Maintenance'}
                      </h2>
-                     <p className="text-sm text-lumina-muted mb-6">Updating status for <span className="text-white font-bold">{actionAsset.name}</span></p>
-
+                     {/* ... form content ... */}
                      <div className="space-y-4">
                          {actionType === 'CHECK_OUT' && (
                              <>
@@ -416,14 +421,36 @@ const InventoryView: React.FC<InventoryViewProps> = ({ assets, users, onAddAsset
                             <button type="button" onClick={() => { setActionAsset(null); setActionType(null); }} className="py-3 text-lumina-muted font-bold hover:text-white transition-colors">
                                 Cancel
                             </button>
-                            <button type="button" onClick={handleActionSubmit} className={`py-3 rounded-xl font-bold text-white transition-colors shadow-lg
-                                ${actionType === 'CHECK_OUT' ? 'bg-blue-500 hover:bg-blue-600 shadow-blue-500/20' : 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/20'}`}>
-                                Confirm Update
+                            <button 
+                                type="button" 
+                                onClick={handleActionSubmit} 
+                                disabled={isSaving}
+                                className={`py-3 rounded-xl font-bold text-white transition-colors shadow-lg flex items-center justify-center gap-2
+                                ${actionType === 'CHECK_OUT' ? 'bg-blue-500 hover:bg-blue-600 shadow-blue-500/20' : 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/20'}`}
+                            >
+                                {isSaving ? <Loader2 className="animate-spin"/> : 'Confirm Update'}
                             </button>
                          </div>
                      </div>
                  </Motion.div>
              </div>
+          )}
+      </AnimatePresence>
+      
+      {/* ... Scan Overlay ... */}
+      <AnimatePresence>
+          {isScanning && (
+              <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black">
+                  <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-64 h-64 border-2 border-lumina-accent rounded-xl relative overflow-hidden">
+                          <div className="absolute top-0 left-0 w-full h-1 bg-lumina-accent animate-scan-y shadow-[0_0_10px_#bef264]"></div>
+                      </div>
+                  </div>
+                  <div className="absolute bottom-10 flex flex-col items-center">
+                      <p className="text-white font-bold mb-4 animate-pulse">Scanning...</p>
+                      <button onClick={() => setIsScanning(false)} className="bg-white text-black px-6 py-2 rounded-full font-bold">Cancel</button>
+                  </div>
+              </div>
           )}
       </AnimatePresence>
     </div>

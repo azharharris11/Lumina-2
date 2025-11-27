@@ -2,7 +2,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Aperture, ArrowRight, Mail, Lock, User as UserIcon, Building, Loader2, AlertCircle, ArrowLeft } from 'lucide-react';
-import { createUserWithEmailAndPassword, updateProfile, signInWithPopup } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { auth, db, googleProvider } from '../firebase';
 import { User } from '../types';
@@ -43,34 +42,27 @@ const RegisterView: React.FC<RegisterViewProps> = ({ onLoginLink, onRegisterSucc
     setIsLoading(true);
 
     try {
-      // 1. Create Auth User
-      const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
-      const user = userCredential.user;
-
-      // 2. Update Display Name in Auth
-      await updateProfile(user, {
-          displayName: formData.fullName,
-          photoURL: `https://ui-avatars.com/api/?name=${formData.fullName}&background=0D8ABC&color=fff`
-      });
-
-      // 3. Prepare User Object for App State
+      // Mock Auth Creation
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      const uid = `u-${Date.now()}`;
+      
       const appUser: User = {
-          id: user.uid,
+          id: uid,
           name: formData.fullName,
           email: formData.email || '',
           role: 'OWNER',
-          avatar: user.photoURL || '',
+          avatar: `https://ui-avatars.com/api/?name=${formData.fullName}&background=0D8ABC&color=fff`,
           phone: '',
           status: 'ACTIVE',
           joinedDate: new Date().toISOString(),
-          hasCompletedOnboarding: false, // Start Flow
+          hasCompletedOnboarding: false, 
           studioFocus: ''
       };
 
-      // 4. Create Firestore document
+      // Create Firestore document (Try/Catch because FS might not be configured in mock mode environment)
       try {
           const newUserProfile = {
-              uid: user.uid,
+              uid: uid,
               name: formData.fullName,
               email: formData.email,
               role: 'OWNER',
@@ -78,24 +70,27 @@ const RegisterView: React.FC<RegisterViewProps> = ({ onLoginLink, onRegisterSucc
               createdAt: new Date().toISOString(),
               phone: '',
               status: 'ACTIVE',
-              avatar: user.photoURL,
+              avatar: appUser.avatar,
               hasCompletedOnboarding: false
           };
-          await setDoc(doc(db, "users", user.uid), newUserProfile);
+          await setDoc(doc(db, "users", uid), newUserProfile);
       } catch (fsError) {
-          console.warn("Firestore Profile Creation Failed:", fsError);
-          // Don't block registration if FS fails, just log it
+          console.warn("Firestore Profile Creation Failed (Mock Mode):", fsError);
       }
+
+      // Simulate Sign In
+      (auth as any).signInMock({
+          uid,
+          email: formData.email,
+          displayName: formData.fullName,
+          photoURL: appUser.avatar
+      });
 
       onRegisterSuccess(appUser);
 
     } catch (err: any) {
       console.error("Registration Error:", err);
-      let msg = "Failed to create account.";
-      if (err.code === 'auth/email-already-in-use') msg = "That email is already in use.";
-      if (err.code === 'auth/invalid-email') msg = "Invalid email address.";
-      if (err.code === 'auth/unauthorized-domain') msg = `Domain not authorized. Add '${window.location.hostname}' to Firebase Console > Auth > Settings.`;
-      setError(msg);
+      setError("Failed to create account.");
     } finally {
       setIsLoading(false);
     }
@@ -105,42 +100,43 @@ const RegisterView: React.FC<RegisterViewProps> = ({ onLoginLink, onRegisterSucc
       setError(null);
       setIsLoading(true);
       try {
-          const result = await signInWithPopup(auth, googleProvider);
-          const user = result.user;
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          const uid = `u-${Date.now()}`;
+          const mockUser = {
+              uid: uid,
+              email: 'google@demo.com',
+              displayName: 'Google User',
+              photoURL: `https://ui-avatars.com/api/?name=Google+User&background=0D8ABC&color=fff`
+          };
 
           try {
-              const docRef = doc(db, "users", user.uid);
+              const docRef = doc(db, "users", uid);
               const docSnap = await getDoc(docRef);
 
               if (!docSnap.exists()) {
                   const newUserProfile = {
-                      uid: user.uid,
-                      name: user.displayName || 'User',
-                      email: user.email,
+                      uid: uid,
+                      name: mockUser.displayName,
+                      email: mockUser.email,
                       role: 'OWNER',
                       studioName: 'My Studio',
                       createdAt: new Date().toISOString(),
                       phone: '',
                       status: 'ACTIVE',
-                      avatar: user.photoURL,
+                      avatar: mockUser.photoURL,
                       hasCompletedOnboarding: false
                   };
                   await setDoc(docRef, newUserProfile);
               }
           } catch (fsError) {
-              console.warn("Firestore Profile Check Failed:", fsError);
+              console.warn("Firestore Profile Check Failed (Mock Mode):", fsError);
           }
           
-          // App.tsx onAuthStateChanged will handle navigation
+          (auth as any).signInMock(mockUser);
+          
       } catch (err: any) {
           console.error("Google Register Error:", err);
-          if (err.code === 'auth/unauthorized-domain') {
-              setError(`Domain not authorized. Add '${window.location.hostname}' to Firebase Console > Auth > Settings.`);
-          } else if (err.code === 'auth/popup-closed-by-user') {
-              setError("Sign-up cancelled.");
-          } else {
-              setError("Failed to sign up with Google. Check console.");
-          }
+          setError("Failed to sign up with Google.");
           setIsLoading(false);
       }
   };

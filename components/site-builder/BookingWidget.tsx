@@ -24,22 +24,13 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ packages, theme, onSubmit
     const [clientInfo, setClientInfo] = useState({ name: '', email: '', phone: '' });
     const [isSubmitting, setIsSubmitting] = useState(false);
     
-    // Tracking Simulation State
     const [pixelToast, setPixelToast] = useState<string | null>(null);
 
-    // --- TRACKING HELPER ---
     const firePixel = (event: string, details: string) => {
         const w = window as any;
-        let fired = false;
-
-        if (pixels?.facebookPixelId && w.fbq) { w.fbq('track', event, { content_name: details }); fired = true; }
-        if (pixels?.tiktokPixelId && w.ttq) { w.ttq.track(event, { content_name: details }); fired = true; }
-        if (pixels?.googleTagId && w.gtag) { w.gtag('event', event, { event_label: details }); fired = true; }
-
-        if (fired) {
-            setPixelToast(`${event} fired`);
-            setTimeout(() => setPixelToast(null), 3000);
-        }
+        if (pixels?.facebookPixelId && w.fbq) w.fbq('track', event, { content_name: details });
+        if (pixels?.tiktokPixelId && w.ttq) w.ttq.track(event, { content_name: details });
+        if (pixels?.googleTagId && w.gtag) w.gtag('event', event, { event_label: details });
     };
 
     const handleSelectPackage = (pkg: Package) => {
@@ -48,23 +39,40 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ packages, theme, onSubmit
         setStep('DATE');
     };
 
-    // --- AVAILABILITY LOGIC ---
+    // --- DYNAMIC SLOT LOGIC ---
     const availableTimeSlots = useMemo(() => {
-        const slots = ['09:00', '11:00', '13:00', '15:00', '17:00'];
-        if (!selectedDate || !selectedPackage) return slots.map(t => ({ time: t, available: true }));
+        if (!selectedDate || !selectedPackage) return [];
+
+        // Operating Hours (Default 09:00 - 18:00 if not config passed, assumed standard)
+        const opStart = 9;
+        const opEnd = 18;
+        const slots = [];
+
+        // Generate slots every 30 mins
+        for (let h = opStart; h < opEnd; h++) {
+            slots.push(`${h < 10 ? '0'+h : h}:00`);
+            slots.push(`${h < 10 ? '0'+h : h}:30`);
+        }
 
         return slots.map(time => {
             const [startH, startM] = time.split(':').map(Number);
             const proposedStart = startH * 60 + startM;
             const proposedEnd = proposedStart + (selectedPackage.duration * 60);
 
-            // Check against existing bookings
+            // Hard Stop at closing time
+            if (proposedEnd > (opEnd * 60)) {
+                return { time, available: false };
+            }
+
+            // Check overlap against existing bookings
             const hasConflict = bookings.some(b => {
                 if (b.date !== selectedDate || b.status === 'CANCELLED') return false;
                 if (!b.timeStart) return false;
                 const [bStartH, bStartM] = b.timeStart.split(':').map(Number);
                 const bStart = bStartH * 60 + bStartM;
                 const bEnd = bStart + (b.duration * 60);
+                
+                // Conflict if: Proposed start is before Existing end AND Proposed End is after Existing Start
                 return (proposedStart < bEnd) && (proposedEnd > bStart);
             });
 
@@ -72,57 +80,15 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ packages, theme, onSubmit
         });
     }, [selectedDate, selectedPackage, bookings]);
 
-    // --- THEME ADAPTER ---
+    // --- THEME ADAPTER (Simplified for brevity, keeps existing structure) ---
     const getThemeClasses = () => {
         switch(theme) {
-            case 'RETRO':
-                return {
-                    container: 'bg-[#c0c0c0] border-2 border-white border-r-black border-b-black p-4 text-black font-mono',
-                    button: 'bg-blue-800 text-white border-2 border-white/50 px-4 py-2 font-bold hover:bg-blue-700 shadow-sm',
-                    input: 'bg-white border-2 border-gray-600 border-r-white border-b-white p-2',
-                    card: 'bg-white border-2 border-gray-600 p-3 hover:bg-blue-100 cursor-pointer mb-2',
-                    accent: 'text-blue-800'
-                };
-            case 'VOGUE':
-                return {
-                    container: 'bg-white border-[4px] border-[#ff3333] p-6 text-black font-sans',
-                    button: 'bg-black text-white border-2 border-black hover:bg-[#ffff00] hover:text-black font-black uppercase px-6 py-3',
-                    input: 'bg-[#f0f0f0] border-2 border-black p-3 font-bold focus:bg-[#ffff00] outline-none',
-                    card: 'border-4 border-black p-4 hover:bg-[#ffff00] cursor-pointer transition-all mb-3',
-                    accent: 'text-[#ff3333]'
-                };
-            case 'CINEMA':
-                return {
-                    container: 'bg-[#050505] border border-white/10 p-6 text-white font-sans rounded-xl backdrop-blur-md',
-                    button: 'bg-blue-600 text-white rounded px-6 py-2 font-bold hover:bg-blue-500 transition-colors',
-                    input: 'bg-white/10 border border-white/20 rounded p-3 text-white focus:border-blue-500 outline-none',
-                    card: 'bg-white/5 border border-white/10 p-4 rounded hover:border-blue-500 cursor-pointer transition-all mb-3',
-                    accent: 'text-blue-500'
-                };
-            case 'BOLD':
-                return {
-                    container: 'bg-white border-[6px] border-black p-6 text-black font-sans',
-                    button: 'bg-black text-[#bef264] border-4 border-black font-black uppercase px-6 py-3 hover:bg-white hover:text-black',
-                    input: 'bg-[#f0f0f0] border-4 border-black p-3 font-bold focus:bg-white outline-none',
-                    card: 'border-4 border-black p-4 hover:bg-[#bef264] cursor-pointer transition-all mb-3 shadow-[4px_4px_0_0_black]',
-                    accent: 'text-black'
-                };
-            case 'IMPACT':
-                return {
-                    container: 'bg-white border-4 border-black p-6 text-black font-sans shadow-[8px_8px_0_0_black]',
-                    button: 'bg-[#22c55e] text-white border-2 border-black font-black uppercase px-6 py-3 hover:translate-y-1 transition-transform shadow-[4px_4px_0_0_black]',
-                    input: 'bg-gray-100 border-2 border-black p-3 font-bold focus:bg-yellow-100 outline-none',
-                    card: 'border-2 border-black p-4 hover:bg-yellow-100 cursor-pointer transition-all shadow-[4px_4px_0_0_gray] mb-3',
-                    accent: 'text-black'
-                };
-            default: // Modern styles
-                return {
-                    container: 'bg-white border border-gray-200 p-6 text-gray-800 font-sans rounded-2xl shadow-xl',
-                    button: 'bg-black text-white rounded-lg px-6 py-3 font-medium hover:opacity-80 transition-opacity',
-                    input: 'bg-gray-50 border border-gray-200 rounded-lg p-3 focus:ring-2 focus:ring-black/5 focus:border-black outline-none',
-                    card: 'bg-white border border-gray-200 p-4 rounded-xl hover:shadow-md cursor-pointer transition-all mb-3 hover:border-black',
-                    accent: 'text-black'
-                };
+            case 'RETRO': return { container: 'bg-[#c0c0c0] border-2 border-white border-r-black border-b-black p-4 text-black font-mono', button: 'bg-blue-800 text-white border-2 border-white/50 px-4 py-2 font-bold hover:bg-blue-700 shadow-sm', input: 'bg-white border-2 border-gray-600 border-r-white border-b-white p-2', card: 'bg-white border-2 border-gray-600 p-3 hover:bg-blue-100 cursor-pointer mb-2', accent: 'text-blue-800' };
+            case 'VOGUE': return { container: 'bg-white border-[4px] border-[#ff3333] p-6 text-black font-sans', button: 'bg-black text-white border-2 border-black hover:bg-[#ffff00] hover:text-black font-black uppercase px-6 py-3', input: 'bg-[#f0f0f0] border-2 border-black p-3 font-bold focus:bg-[#ffff00] outline-none', card: 'border-4 border-black p-4 hover:bg-[#ffff00] cursor-pointer transition-all mb-3', accent: 'text-[#ff3333]' };
+            case 'CINEMA': return { container: 'bg-[#050505] border border-white/10 p-6 text-white font-sans rounded-xl backdrop-blur-md', button: 'bg-blue-600 text-white rounded px-6 py-2 font-bold hover:bg-blue-500 transition-colors', input: 'bg-white/10 border border-white/20 rounded p-3 text-white focus:border-blue-500 outline-none', card: 'bg-white/5 border border-white/10 p-4 rounded hover:border-blue-500 cursor-pointer transition-all mb-3', accent: 'text-blue-500' };
+            case 'BOLD': return { container: 'bg-white border-[6px] border-black p-6 text-black font-sans', button: 'bg-black text-[#bef264] border-4 border-black font-black uppercase px-6 py-3 hover:bg-white hover:text-black', input: 'bg-[#f0f0f0] border-4 border-black p-3 font-bold focus:bg-white outline-none', card: 'border-4 border-black p-4 hover:bg-[#bef264] cursor-pointer transition-all mb-3 shadow-[4px_4px_0_0_black]', accent: 'text-black' };
+            case 'IMPACT': return { container: 'bg-white border-4 border-black p-6 text-black font-sans shadow-[8px_8px_0_0_black]', button: 'bg-[#22c55e] text-white border-2 border-black font-black uppercase px-6 py-3 hover:translate-y-1 transition-transform shadow-[4px_4px_0_0_black]', input: 'bg-gray-100 border-2 border-black p-3 font-bold focus:bg-yellow-100 outline-none', card: 'border-2 border-black p-4 hover:bg-yellow-100 cursor-pointer transition-all shadow-[4px_4px_0_0_gray] mb-3', accent: 'text-black' };
+            default: return { container: 'bg-white border border-gray-200 p-6 text-gray-800 font-sans rounded-2xl shadow-xl', button: 'bg-black text-white rounded-lg px-6 py-3 font-medium hover:opacity-80 transition-opacity', input: 'bg-gray-50 border border-gray-200 rounded-lg p-3 focus:ring-2 focus:ring-black/5 focus:border-black outline-none', card: 'bg-white border border-gray-200 p-4 rounded-xl hover:shadow-md cursor-pointer transition-all mb-3 hover:border-black', accent: 'text-black' };
         }
     };
 
@@ -224,7 +190,7 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ packages, theme, onSubmit
                             />
                             
                             {selectedDate && (
-                                <div className="grid grid-cols-2 gap-2 mt-4 animate-in slide-in-from-top-2">
+                                <div className="grid grid-cols-2 gap-2 mt-4 animate-in slide-in-from-top-2 max-h-[200px] overflow-y-auto custom-scrollbar">
                                     {availableTimeSlots.map(slot => (
                                         <button 
                                             key={slot.time}
@@ -235,7 +201,7 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ packages, theme, onSubmit
                                                 ? 'bg-black text-white border-black' 
                                                 : slot.available 
                                                     ? 'border-gray-300 hover:border-black text-gray-700' 
-                                                    : 'bg-gray-100 text-gray-400 cursor-not-allowed border-transparent'
+                                                    : 'bg-gray-100 text-gray-400 cursor-not-allowed border-transparent line-through'
                                             }`}
                                         >
                                             {slot.time}
@@ -250,6 +216,7 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ packages, theme, onSubmit
                     </Motion.div>
                 )}
 
+                {/* DETAILS and CONFIRM steps remain essentially the same */}
                 {step === 'DETAILS' && (
                     <Motion.div key="step3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
                         <h3 className={`text-lg font-bold mb-4 uppercase tracking-wider ${s.accent}`}>Contact Info</h3>

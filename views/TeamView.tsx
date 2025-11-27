@@ -6,7 +6,7 @@ import { Mail, Phone, Calendar, Briefcase, Award, Circle, Plus, X, Trash2, Edit2
 
 const Motion = motion as any;
 
-const TeamView: React.FC<TeamViewProps> = ({ users, bookings, onAddUser, onUpdateUser, onDeleteUser, onRecordExpense }) => {
+const TeamView: React.FC<TeamViewProps> = ({ users, bookings, accounts, onAddUser, onUpdateUser, onDeleteUser, onRecordExpense }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [viewScheduleUser, setViewScheduleUser] = useState<User | null>(null);
@@ -77,13 +77,21 @@ const TeamView: React.FC<TeamViewProps> = ({ users, bookings, onAddUser, onUpdat
           return;
       }
 
-      if (window.confirm(`Process payout of Rp ${amount.toLocaleString()} for ${user.name}?\n\nThis will record an expense in Finance.`)) {
+      // Check for available account
+      const payoutAccount = accounts.find(a => a.type === 'BANK') || accounts[0];
+      
+      if (!payoutAccount) {
+          alert("Please create a financial account in the Finance tab before processing payouts.");
+          return;
+      }
+
+      if (window.confirm(`Process payout of Rp ${amount.toLocaleString()} for ${user.name} from ${payoutAccount.name}?\n\nThis will record an expense in Finance.`)) {
           if (onRecordExpense) {
               onRecordExpense({
                   description: `Commission Payout - ${user.name}`,
                   amount: amount,
                   category: 'Staff Salaries',
-                  accountId: 'acc1', // Default to main account, needs proper selection ideally
+                  accountId: payoutAccount.id, // Use dynamic account ID
                   submittedBy: 'admin'
               });
               alert("Payout recorded as an expense.");

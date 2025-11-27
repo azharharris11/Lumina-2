@@ -14,7 +14,8 @@ import {
   BarChart2,
   Grid,
   Sun,
-  Moon
+  Moon,
+  Globe // Added Globe icon
 } from 'lucide-react';
 import { SidebarProps } from '../types'; // Updated import
 import { motion } from 'framer-motion';
@@ -23,7 +24,6 @@ const Motion = motion as any;
 
 const Sidebar: React.FC<SidebarProps> = ({ currentUser, onNavigate, currentView, onLogout, onSwitchApp, isDarkMode, onToggleTheme, bookings, config }) => {
   // LITE MODE FILTER
-  // If lite mode is enabled, filter out 'team' and 'analytics' to simplify
   const isLite = config?.isLiteMode;
 
   const menuItems = [
@@ -34,6 +34,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentUser, onNavigate, currentView,
     { id: 'clients', label: 'Clients', icon: Users, roles: ['OWNER', 'ADMIN', 'FINANCE'] },
     { id: 'team', label: 'Team & HR', icon: Briefcase, roles: ['OWNER', 'ADMIN', 'FINANCE'], hidden: isLite },
     { id: 'finance', label: 'Finance', icon: Wallet, roles: ['OWNER', 'FINANCE'] },
+    { id: 'website', label: 'Website Builder', icon: Globe, roles: ['OWNER', 'ADMIN'] }, // NEW ITEM
     { id: 'analytics', label: 'Analytics', icon: BarChart2, roles: ['OWNER', 'ADMIN'], hidden: isLite },
     { id: 'settings', label: 'Settings', icon: Settings, roles: ['OWNER', 'ADMIN'] },
   ];
@@ -45,15 +46,12 @@ const Sidebar: React.FC<SidebarProps> = ({ currentUser, onNavigate, currentView,
       if (!bookings) return 0;
       
       if (viewId === 'production' || viewId === 'dashboard') {
-          // Photographers see badge if they have 'SHOOTING' tasks
           if (currentUser.role === 'PHOTOGRAPHER') {
               return bookings.filter(b => b.photographerId === currentUser.id && b.status === 'SHOOTING').length;
           }
-          // Editors see badge if they have 'EDITING' tasks
           if (currentUser.role === 'EDITOR') {
               return bookings.filter(b => b.editorId === currentUser.id && b.status === 'EDITING').length;
           }
-          // Admins/Owners see badge for 'REVIEW' tasks
           if (currentUser.role === 'OWNER' || currentUser.role === 'ADMIN') {
               return bookings.filter(b => b.status === 'REVIEW').length;
           }

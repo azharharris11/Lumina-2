@@ -23,7 +23,7 @@ const InvoiceModal: React.FC<InvoiceModalProps> = ({ isOpen, onClose, booking, c
   // Determine Tax Rate
   const applicableTaxRate = booking.taxSnapshot !== undefined ? booking.taxSnapshot : (config.taxRate || 0);
 
-  // Calculate Totals
+  // Calculate Totals SAFE MATH
   const items = booking.items && booking.items.length > 0 ? booking.items : [
       {
           id: 'legacy',
@@ -38,11 +38,11 @@ const InvoiceModal: React.FC<InvoiceModalProps> = ({ isOpen, onClose, booking, c
 
   const discount = booking.discount || { type: 'FIXED', value: 0 };
   const discountAmount = discount.type === 'PERCENT' 
-    ? subtotal * (discount.value / 100) 
+    ? Math.round(subtotal * (discount.value / 100))
     : discount.value;
     
   const subtotalAfterDiscount = Math.max(0, subtotal - discountAmount);
-  const taxAmount = (subtotalAfterDiscount * applicableTaxRate) / 100;
+  const taxAmount = Math.round((subtotalAfterDiscount * applicableTaxRate) / 100);
   const totalAmount = subtotalAfterDiscount + taxAmount;
   const balanceDue = totalAmount - booking.paidAmount;
 

@@ -424,6 +424,7 @@ export interface CalendarViewProps {
 export interface TeamViewProps {
   users: User[];
   bookings: Booking[];
+  accounts: Account[]; // Added accounts
   onAddUser: (user: User) => void;
   onUpdateUser: (user: User) => void;
   onDeleteUser: (id: string) => void;

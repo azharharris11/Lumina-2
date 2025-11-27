@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 interface SitePreviewFrameProps {
   children: React.ReactNode;
   className?: string;
-  customCss?: string; // New Prop
+  customCss?: string; 
 }
 
 const SitePreviewFrame: React.FC<SitePreviewFrameProps> = ({ children, className, customCss }) => {
@@ -17,28 +17,36 @@ const SitePreviewFrame: React.FC<SitePreviewFrameProps> = ({ children, className
 
     const doc = contentRef.contentWindow.document;
     
-    // Inject Tailwind CSS
-    const script = doc.createElement('script');
-    script.src = "https://cdn.tailwindcss.com";
-    doc.head.appendChild(script);
+    // Inject Tailwind CSS (Check first)
+    if (!doc.getElementById('tailwind-script')) {
+        const script = doc.createElement('script');
+        script.id = 'tailwind-script';
+        script.src = "https://cdn.tailwindcss.com";
+        doc.head.appendChild(script);
+    }
 
-    // Inject Fonts
-    const fontLink = doc.createElement('link');
-    fontLink.href = "https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&family=Syne:wght@400;600;700;800&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap";
-    fontLink.rel = "stylesheet";
-    doc.head.appendChild(fontLink);
+    // Inject Fonts (Check first)
+    if (!doc.getElementById('font-link')) {
+        const fontLink = doc.createElement('link');
+        fontLink.id = 'font-link';
+        fontLink.href = "https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&family=Syne:wght@400;600;700;800&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap";
+        fontLink.rel = "stylesheet";
+        doc.head.appendChild(fontLink);
+    }
 
     // Basic Styles reset
-    const style = doc.createElement('style');
-    style.id = "base-styles";
-    style.innerHTML = `
-      body { margin: 0; overflow-x: hidden; }
-      * { box-sizing: border-box; }
-      ::-webkit-scrollbar { width: 6px; }
-      ::-webkit-scrollbar-track { background: #1c1917; }
-      ::-webkit-scrollbar-thumb { background: #292524; border-radius: 3px; }
-    `;
-    doc.head.appendChild(style);
+    if (!doc.getElementById('base-styles')) {
+        const style = doc.createElement('style');
+        style.id = "base-styles";
+        style.innerHTML = `
+          body { margin: 0; overflow-x: hidden; }
+          * { box-sizing: border-box; }
+          ::-webkit-scrollbar { width: 6px; }
+          ::-webkit-scrollbar-track { background: #1c1917; }
+          ::-webkit-scrollbar-thumb { background: #292524; border-radius: 3px; }
+        `;
+        doc.head.appendChild(style);
+    }
 
   }, [contentRef]);
 

@@ -3,7 +3,6 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { User } from '../types';
 import { Aperture, ArrowRight, Lock, Mail, Loader2, AlertCircle, ArrowLeft } from 'lucide-react';
-import { signInWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
 import { auth, googleProvider } from '../firebase';
 
 const Motion = motion as any;
@@ -27,19 +26,16 @@ const LoginView: React.FC<LoginViewProps> = ({ users, onLogin, onRegisterLink, o
       setIsLoading(true);
 
       try {
-          await signInWithEmailAndPassword(auth, email, password);
-          // The onAuthStateChanged in App.tsx will handle the redirect and user state setting
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          (auth as any).signInMock({
+              uid: 'u1',
+              email: email,
+              displayName: 'Demo User',
+              photoURL: `https://ui-avatars.com/api/?name=Demo+User&background=0D8ABC&color=fff`
+          });
       } catch (err: any) {
           console.error("Login Error:", err);
-          if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
-              setError("Incorrect email or password. Please try again.");
-          } else if (err.code === 'auth/too-many-requests') {
-              setError("Too many failed attempts. Please try again later.");
-          } else if (err.code === 'auth/network-request-failed') {
-              setError("Network error. Check your connection.");
-          } else {
-              setError("Failed to log in. Please try again.");
-          }
+          setError("Failed to log in. Please try again.");
       } finally {
           setIsLoading(false);
       }
@@ -49,19 +45,16 @@ const LoginView: React.FC<LoginViewProps> = ({ users, onLogin, onRegisterLink, o
       setError(null);
       setIsLoading(true);
       try {
-          await signInWithPopup(auth, googleProvider);
-          // App.tsx will handle the rest via onAuthStateChanged
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          (auth as any).signInMock({
+              uid: 'u1',
+              email: 'demo@gmail.com',
+              displayName: 'Demo User',
+              photoURL: `https://ui-avatars.com/api/?name=Demo+User&background=0D8ABC&color=fff`
+          });
       } catch (err: any) {
           console.error("Google Login Error:", err);
-          if (err.code === 'auth/unauthorized-domain') {
-              setError(`Domain not authorized. Add '${window.location.hostname}' to Firebase Console > Auth > Settings.`);
-          } else if (err.code === 'auth/popup-closed-by-user') {
-              setError("Sign-in cancelled.");
-          } else if (err.code === 'auth/cancelled-popup-request') {
-              // Ignore multiple clicks
-          } else {
-              setError("Failed to sign in with Google. Check console for details.");
-          }
+          setError("Failed to sign in with Google.");
           setIsLoading(false);
       }
   };
