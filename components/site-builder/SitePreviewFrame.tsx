@@ -5,9 +5,10 @@ import { createPortal } from 'react-dom';
 interface SitePreviewFrameProps {
   children: React.ReactNode;
   className?: string;
+  customCss?: string; // New Prop
 }
 
-const SitePreviewFrame: React.FC<SitePreviewFrameProps> = ({ children, className }) => {
+const SitePreviewFrame: React.FC<SitePreviewFrameProps> = ({ children, className, customCss }) => {
   const [contentRef, setContentRef] = useState<HTMLIFrameElement | null>(null);
   const mountNode = contentRef?.contentWindow?.document?.body;
 
@@ -29,6 +30,7 @@ const SitePreviewFrame: React.FC<SitePreviewFrameProps> = ({ children, className
 
     // Basic Styles reset
     const style = doc.createElement('style');
+    style.id = "base-styles";
     style.innerHTML = `
       body { margin: 0; overflow-x: hidden; }
       * { box-sizing: border-box; }
@@ -39,6 +41,24 @@ const SitePreviewFrame: React.FC<SitePreviewFrameProps> = ({ children, className
     doc.head.appendChild(style);
 
   }, [contentRef]);
+
+  // Inject Custom CSS dynamically
+  useEffect(() => {
+      if (!contentRef?.contentWindow) return;
+      const doc = contentRef.contentWindow.document;
+      
+      let cssStyle = doc.getElementById('custom-css');
+      if (!cssStyle) {
+          cssStyle = doc.createElement('style');
+          cssStyle.id = 'custom-css';
+          doc.head.appendChild(cssStyle);
+      }
+      if (customCss) {
+          cssStyle.innerHTML = customCss;
+      } else {
+          cssStyle.innerHTML = '';
+      }
+  }, [contentRef, customCss]);
 
   return (
     <iframe

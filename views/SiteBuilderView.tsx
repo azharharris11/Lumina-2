@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SiteBuilderViewProps, SiteGalleryItem, SitePage, SiteSection, SectionType, SiteTheme, SiteFont } from '../types';
-import { Globe, Smartphone, Monitor, Save, Layout, Type, Image as ImageIcon, Palette, Check, Megaphone, Trash2, Plus, ArrowLeft, Sliders, File, Home, Layers, ArrowUp, ArrowDown, GripVertical, PanelLeftClose, PanelLeftOpen, ChevronUp, ChevronDown, RefreshCw } from 'lucide-react';
+import { Globe, Smartphone, Monitor, Save, Layout, Type, Image as ImageIcon, Palette, Check, Megaphone, Trash2, Plus, ArrowLeft, Sliders, File, Home, Layers, ArrowUp, ArrowDown, GripVertical, PanelLeftClose, PanelLeftOpen, ChevronUp, ChevronDown, RefreshCw, Code } from 'lucide-react';
 import SitePreviewFrame from '../components/site-builder/SitePreviewFrame';
 
 // Themes (Import remains same)
@@ -484,7 +484,7 @@ const SiteBuilderView: React.FC<ExtendedSiteBuilderViewProps> = ({ config, packa
                         </button>
                         {localSite.pages?.filter(p => p.id !== 'home').map(page => (
                             <button 
-                                key={page.id}
+                                key={page.id} 
                                 onClick={() => { setActivePageId(page.id); setActiveTab('SECTIONS'); }}
                                 className={`px-3 py-1.5 text-xs font-bold rounded-lg whitespace-nowrap transition-colors
                                     ${activePageId === page.id ? 'bg-lumina-highlight text-white border border-lumina-highlight' : 'text-lumina-muted hover:text-white'}
@@ -547,7 +547,7 @@ const SiteBuilderView: React.FC<ExtendedSiteBuilderViewProps> = ({ config, packa
                                 </div>
                             </div>
 
-                            {/* UPDATED: Typography Selection */}
+                            {/* Typography Selection */}
                             <div className="space-y-3 border-t border-lumina-highlight pt-6">
                                 <h3 className="text-xs font-bold text-lumina-muted uppercase tracking-widest flex items-center gap-2"><Type size={14}/> Typography</h3>
                                 <div className="grid grid-cols-1 gap-2">
@@ -567,6 +567,18 @@ const SiteBuilderView: React.FC<ExtendedSiteBuilderViewProps> = ({ config, packa
                                         </button>
                                     ))}
                                 </div>
+                            </div>
+
+                            {/* NEW: CUSTOM CSS */}
+                            <div className="space-y-4 border-t border-lumina-highlight pt-6">
+                                <h3 className="text-xs font-bold text-lumina-muted uppercase tracking-widest flex items-center gap-2"><Code size={14}/> Custom CSS</h3>
+                                <p className="text-[10px] text-lumina-muted">Inject custom styles. Use <code>!important</code> to override.</p>
+                                <textarea 
+                                    value={localSite.customCss || ''} 
+                                    onChange={(e) => handleGlobalChange('customCss', e.target.value)}
+                                    placeholder=".bg-white { background-color: #000 !important; }"
+                                    className="w-full bg-lumina-base border border-lumina-highlight rounded-lg p-3 text-xs text-white font-mono h-32 focus:border-lumina-accent outline-none"
+                                />
                             </div>
 
                             <div className="space-y-4 border-t border-lumina-highlight pt-6">
@@ -664,8 +676,8 @@ const SiteBuilderView: React.FC<ExtendedSiteBuilderViewProps> = ({ config, packa
               <motion.div layout className={`bg-white shadow-2xl overflow-hidden transition-all duration-500 ease-in-out relative ${previewMode === 'MOBILE' ? 'w-[375px] h-[812px] rounded-[3rem] border-[8px] border-gray-900 ring-4 ring-gray-800' : 'w-full h-full rounded-lg border border-lumina-highlight'}`}>
                   {previewMode === 'MOBILE' && <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-gray-900 rounded-b-xl z-50"></div>}
                   
-                  {/* USING IFRAME COMPONENT FOR ISOLATION */}
-                  <SitePreviewFrame className="w-full h-full bg-white">
+                  {/* USING IFRAME COMPONENT FOR ISOLATION + CSS INJECTION */}
+                  <SitePreviewFrame className="w-full h-full bg-white" customCss={localSite.customCss}>
                       {renderTheme()}
                   </SitePreviewFrame>
               </motion.div>

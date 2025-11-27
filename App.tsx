@@ -345,6 +345,66 @@ const App: React.FC = () => {
       }
   };
 
+  // --- AUTOMATION ENGINE ---
+  const handleUpdateBooking = async (updatedBooking: Booking) => {
+      // 1. Determine if status changed
+      const oldBooking = bookings.find(b => b.id === updatedBooking.id);
+      const statusChanged = oldBooking && oldBooking.status !== updatedBooking.status;
+      
+      let finalBooking = { ...updatedBooking };
+
+      if (statusChanged && config.workflowAutomations) {
+          // Find matching rules
+          // Logic: Match triggerStatus AND (triggerPackageId is null OR triggerPackageId matches current booking packageId)
+          const matchingRules = config.workflowAutomations.filter(rule => 
+              rule.triggerStatus === updatedBooking.status &&
+              (!rule.triggerPackageId || rule.triggerPackageId === updatedBooking.packageId)
+          );
+
+          if (matchingRules.length > 0) {
+              const newTasks: BookingTask[] = [];
+              let assignedUser = finalBooking.editorId; // Default keep existing
+
+              matchingRules.forEach(rule => {
+                  // Add Tasks
+                  rule.tasks.forEach(taskTitle => {
+                      // Prevent duplicate tasks
+                      if (!finalBooking.tasks?.some(t => t.title === taskTitle)) {
+                          newTasks.push({
+                              id: `t-auto-${Date.now()}-${Math.random().toString(36).substr(2,9)}`,
+                              title: taskTitle,
+                              completed: false
+                          });
+                      }
+                  });
+
+                  // Auto-Assign (Priority: Last rule wins if multiple)
+                  if (rule.assignToUserId) {
+                      // If status is EDITING/CULLING, assume editor assignment
+                      // If SHOOTING, assume photographer (though rarely re-assigned)
+                      if (['CULLING', 'EDITING'].includes(updatedBooking.status)) {
+                          assignedUser = rule.assignToUserId;
+                      }
+                  }
+              });
+
+              finalBooking = {
+                  ...finalBooking,
+                  tasks: [...(finalBooking.tasks || []), ...newTasks],
+                  editorId: assignedUser
+              };
+              
+              console.log(`[Automation] Applied ${newTasks.length} tasks and assigned to ${assignedUser}`);
+          }
+      }
+
+      // 2. Optimistic Update
+      setBookings(prev => prev.map(x => x.id === finalBooking.id ? finalBooking : x));
+      
+      // 3. Persist
+      await setDoc(doc(db, "bookings", finalBooking.id), finalBooking);
+  };
+
   const handleAddClient = async (client: Client) => {
       try {
           await setDoc(doc(db, "clients", client.id), { ...client, ownerId: currentUser?.id });
@@ -462,6 +522,7 @@ const App: React.FC = () => {
             isDarkMode={isDarkMode}
             onToggleTheme={() => setIsDarkMode(!isDarkMode)}
             bookings={bookings}
+            config={config}
           />
       )}
       
@@ -499,11 +560,7 @@ const App: React.FC = () => {
                         onDateChange={() => {}}
                         onNewBooking={(prefill) => { setBookingPrefill(prefill); setIsNewBookingModalOpen(true); }}
                         onSelectBooking={(id) => { setSelectedBookingId(id); setIsProjectDrawerOpen(true); }}
-                        onUpdateBooking={async (b) => {
-                            // Optimistic Update
-                            setBookings(prev => prev.map(x => x.id === b.id ? b : x));
-                            await setDoc(doc(db, "bookings", b.id), b);
-                        }}
+                        onUpdateBooking={handleUpdateBooking}
                         googleToken={googleToken}
                     />
                 )}
@@ -513,10 +570,7 @@ const App: React.FC = () => {
                         bookings={bookings}
                         onSelectBooking={(id) => { setSelectedBookingId(id); setIsProjectDrawerOpen(true); }}
                         currentUser={currentUser}
-                        onUpdateBooking={async (b) => {
-                            setBookings(prev => prev.map(x => x.id === b.id ? b : x));
-                            await setDoc(doc(db, "bookings", b.id), b);
-                        }}
+                        onUpdateBooking={handleUpdateBooking}
                         config={config}
                     />
                 )}
@@ -753,10 +807,7 @@ const App: React.FC = () => {
         onClose={() => setIsProjectDrawerOpen(false)}
         booking={bookings.find(b => b.id === selectedBookingId) || null}
         photographer={users.find(u => u.id === (bookings.find(b => b.id === selectedBookingId)?.photographerId))}
-        onUpdateBooking={async (b) => {
-            setBookings(prev => prev.map(x => x.id === b.id ? b : x));
-            await setDoc(doc(db, "bookings", b.id), b);
-        }}
+        onUpdateBooking={handleUpdateBooking}
         onDeleteBooking={async (id) => {
             await deleteDoc(doc(db, "bookings", id));
             setIsProjectDrawerOpen(false);

@@ -21,20 +21,24 @@ import { motion } from 'framer-motion';
 
 const Motion = motion as any;
 
-const Sidebar: React.FC<SidebarProps> = ({ currentUser, onNavigate, currentView, onLogout, onSwitchApp, isDarkMode, onToggleTheme, bookings }) => {
+const Sidebar: React.FC<SidebarProps> = ({ currentUser, onNavigate, currentView, onLogout, onSwitchApp, isDarkMode, onToggleTheme, bookings, config }) => {
+  // LITE MODE FILTER
+  // If lite mode is enabled, filter out 'team' and 'analytics' to simplify
+  const isLite = config?.isLiteMode;
+
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['OWNER', 'ADMIN', 'PHOTOGRAPHER', 'EDITOR', 'FINANCE'] },
     { id: 'calendar', label: 'Schedule', icon: CalendarDays, roles: ['OWNER', 'ADMIN', 'PHOTOGRAPHER'] },
     { id: 'production', label: 'Production', icon: Layers, roles: ['OWNER', 'ADMIN', 'EDITOR', 'PHOTOGRAPHER'] },
     { id: 'inventory', label: 'Inventory', icon: Box, roles: ['OWNER', 'ADMIN', 'PHOTOGRAPHER'] },
     { id: 'clients', label: 'Clients', icon: Users, roles: ['OWNER', 'ADMIN', 'FINANCE'] },
-    { id: 'team', label: 'Team & HR', icon: Briefcase, roles: ['OWNER', 'ADMIN', 'FINANCE'] },
+    { id: 'team', label: 'Team & HR', icon: Briefcase, roles: ['OWNER', 'ADMIN', 'FINANCE'], hidden: isLite },
     { id: 'finance', label: 'Finance', icon: Wallet, roles: ['OWNER', 'FINANCE'] },
-    { id: 'analytics', label: 'Analytics', icon: BarChart2, roles: ['OWNER', 'ADMIN'] },
+    { id: 'analytics', label: 'Analytics', icon: BarChart2, roles: ['OWNER', 'ADMIN'], hidden: isLite },
     { id: 'settings', label: 'Settings', icon: Settings, roles: ['OWNER', 'ADMIN'] },
   ];
 
-  const filteredMenu = menuItems.filter(item => item.roles.includes(currentUser.role));
+  const filteredMenu = menuItems.filter(item => item.roles.includes(currentUser.role) && !item.hidden);
 
   // Calculate Badges
   const getBadgeCount = (viewId: string) => {
@@ -68,9 +72,10 @@ const Sidebar: React.FC<SidebarProps> = ({ currentUser, onNavigate, currentView,
         <div className="h-24 flex items-center justify-between px-6 border-b border-lumina-highlight/50">
           <div className="flex items-center">
               <Aperture className="text-lumina-accent w-8 h-8 animate-spin-slow shrink-0" />
-              <span className="ml-3 font-display font-bold text-xl tracking-tight text-lumina-text">
-                LUMINA
-              </span>
+              <div className="ml-3">
+                  <span className="font-display font-bold text-xl tracking-tight text-lumina-text block">LUMINA</span>
+                  {isLite && <span className="text-[9px] uppercase tracking-widest text-emerald-400 font-bold block -mt-1">Solo Mode</span>}
+              </div>
           </div>
           {/* App Switcher Button */}
           <button 

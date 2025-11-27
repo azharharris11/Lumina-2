@@ -1,5 +1,4 @@
 
-
 import { Account, Booking, Transaction, User, MonthlyMetric, Asset, Package, Client, Notification, StudioConfig } from './types';
 
 export const STUDIO_CONFIG: StudioConfig = {
@@ -53,6 +52,7 @@ export const STUDIO_CONFIG: StudioConfig = {
   operatingHoursEnd: '21:00',
   bufferMinutes: 15, 
   defaultTurnaroundDays: 7,
+  isLiteMode: false, // Default standard mode
 
   logoUrl: '', 
   npwp: '82.992.112.9-442.000',
@@ -220,7 +220,8 @@ export const BOOKINGS: Booking[] = [
         ],
         comments: [],
         discount: { type: 'FIXED', value: 0 },
-        timeLogs: []
+        timeLogs: [],
+        selectedImageIds: []
     },
     { 
         id: 'b2', 
@@ -239,7 +240,8 @@ export const BOOKINGS: Booking[] = [
         contractStatus: 'PENDING',
         comments: [],
         discount: { type: 'FIXED', value: 0 },
-        timeLogs: []
+        timeLogs: [],
+        selectedImageIds: []
     }
 ];
 

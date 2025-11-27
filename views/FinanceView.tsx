@@ -1,9 +1,8 @@
 
-
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { ArrowRightLeft, Wallet, FileText, AlertCircle, CheckCircle, ArrowUpRight, MessageCircle, FileInput, MinusCircle, CheckSquare, Search, Filter, Download, RotateCcw, Trash2, History, Upload, Repeat, Paperclip, ArrowDownLeft, Calendar, Edit2, Plus, X, Save } from 'lucide-react';
+import { ArrowRightLeft, Wallet, FileText, AlertCircle, CheckCircle, ArrowUpRight, MessageCircle, FileInput, MinusCircle, CheckSquare, Search, Filter, Download, RotateCcw, Trash2, History, Upload, Repeat, Paperclip, ArrowDownLeft, Calendar, Edit2, Plus, X, Save, Percent } from 'lucide-react';
 import { FinanceViewProps, Account } from '../types';
 import { STUDIO_CONFIG } from '../data';
 import InvoiceModal from '../components/InvoiceModal';
@@ -14,7 +13,7 @@ const Motion = motion as any;
 const FinanceView: React.FC<FinanceViewProps> = ({ accounts, metrics, bookings, users, transactions = [], onTransfer, onRecordExpense, onSettleBooking, onDeleteTransaction, config, onAddAccount, onUpdateAccount }) => {
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
-  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'INVOICES' | 'EXPENSES' | 'LEDGER'>('OVERVIEW');
+  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'INVOICES' | 'EXPENSES' | 'LEDGER' | 'TAX'>('OVERVIEW');
   
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
@@ -39,6 +38,9 @@ const FinanceView: React.FC<FinanceViewProps> = ({ accounts, metrics, bookings, 
   const [settleForm, setSettleForm] = useState<{ bookingId: string | null, amount: number, maxAmount: number, currentPaidAmount: number, accountId: string, mode: 'PAYMENT' | 'REFUND' }>({
       bookingId: null, amount: 0, maxAmount: 0, currentPaidAmount: 0, accountId: accounts[0]?.id || '', mode: 'PAYMENT'
   });
+
+  // Tax State
+  const [taxMode, setTaxMode] = useState<'UMKM' | 'NORMAL'>('UMKM'); // UMKM = 0.5% Final, Normal = 11% PPN
 
   const getBookingFinancials = (b: any) => {
       const applicableTaxRate = b.taxSnapshot !== undefined ? b.taxSnapshot : (config.taxRate || 0);
@@ -151,6 +153,35 @@ const FinanceView: React.FC<FinanceViewProps> = ({ accounts, metrics, bookings, 
   const handleOpenAddAccount = () => { setEditingAccount(null); setAccountForm({ name: '', type: 'BANK', balance: 0, accountNumber: '' }); setShowAccountModal(true); };
   const handleAccountSubmit = () => { if (editingAccount && onUpdateAccount) { onUpdateAccount({ ...editingAccount, ...accountForm } as Account); } else if (onAddAccount && accountForm.name) { onAddAccount({ id: `acc-${Date.now()}`, name: accountForm.name!, type: accountForm.type as any, balance: Number(accountForm.balance), accountNumber: accountForm.accountNumber } as Account); } setShowAccountModal(false); };
 
+  // TAX CALCULATION LOGIC
+  const taxReport = useMemo(() => {
+      // Filter transactions for INCOME in the current period (simplified to ALL for demo, ideally filtered by year)
+      const incomeTx = transactions.filter(t => t.type === 'INCOME');
+      
+      return incomeTx.map(t => {
+          const bruto = t.amount;
+          // PPh Final (UMKM) is 0.5% of Gross Income
+          const pphFinal = Math.round(bruto * 0.005);
+          
+          // PPN Logic: Assuming the amount received INCLUDES PPN if configured
+          // If amount is 111,000 and rate is 11%, then Base is 100,000 and PPN is 11,000.
+          // Formula: Base = Amount / (1 + Rate)
+          const rate = config.taxRate ? config.taxRate / 100 : 0;
+          const dpp = Math.round(bruto / (1 + rate));
+          const ppn = bruto - dpp;
+
+          return {
+              id: t.id,
+              date: t.date,
+              desc: t.description,
+              bruto,
+              pphFinal,
+              dpp,
+              ppn
+          };
+      });
+  }, [transactions, config.taxRate]);
+
   return (
     <div className="space-y-4 lg:space-y-6 flex flex-col">
       {/* Header */}
@@ -183,6 +214,7 @@ const FinanceView: React.FC<FinanceViewProps> = ({ accounts, metrics, bookings, 
                 { id: 'INVOICES', label: 'Invoices', icon: FileText, count: unpaidBookings.length },
                 { id: 'EXPENSES', label: 'Analysis', icon: PieChart },
                 { id: 'LEDGER', label: 'Ledger', icon: ArrowRightLeft },
+                { id: 'TAX', label: 'Tax / SPT', icon: Percent },
             ].map((tab) => (
                 <button 
                     key={tab.id}
@@ -271,6 +303,7 @@ const FinanceView: React.FC<FinanceViewProps> = ({ accounts, metrics, bookings, 
             </Motion.div>
         )}
 
+        {/* ... INVOICES ... */}
         {activeTab === 'INVOICES' && (
             <Motion.div key="invoices" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-lumina-surface border border-lumina-highlight p-4 rounded-xl gap-4">
@@ -410,6 +443,94 @@ const FinanceView: React.FC<FinanceViewProps> = ({ accounts, metrics, bookings, 
                             ))}
                         </tbody>
                     </table>
+                </div>
+            </Motion.div>
+        )}
+
+        {/* --- NEW TAX TAB --- */}
+        {activeTab === 'TAX' && (
+            <Motion.div key="tax" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+                <div className="flex justify-between items-center p-4 bg-lumina-surface border border-lumina-highlight rounded-xl">
+                    <div>
+                        <h3 className="font-bold text-white">Indonesian Tax Estimation</h3>
+                        <p className="text-xs text-lumina-muted">Calculation based on recorded income transactions.</p>
+                    </div>
+                    <div className="flex bg-lumina-base border border-lumina-highlight rounded-lg p-1">
+                        <button 
+                            onClick={() => setTaxMode('UMKM')}
+                            className={`px-3 py-1.5 rounded text-xs font-bold transition-colors ${taxMode === 'UMKM' ? 'bg-lumina-accent text-lumina-base' : 'text-lumina-muted hover:text-white'}`}
+                        >
+                            UMKM (0.5%)
+                        </button>
+                        <button 
+                            onClick={() => setTaxMode('NORMAL')}
+                            className={`px-3 py-1.5 rounded text-xs font-bold transition-colors ${taxMode === 'NORMAL' ? 'bg-lumina-accent text-lumina-base' : 'text-lumina-muted hover:text-white'}`}
+                        >
+                            PPN Normal (11%)
+                        </button>
+                    </div>
+                </div>
+
+                <div className="bg-lumina-surface border border-lumina-highlight rounded-2xl overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left text-sm min-w-[800px]">
+                            <thead className="bg-lumina-base text-lumina-muted uppercase text-xs font-bold">
+                                <tr>
+                                    <th className="p-4">Date</th>
+                                    <th className="p-4">Description</th>
+                                    <th className="p-4 text-right">Gross Amount</th>
+                                    {taxMode === 'UMKM' && <th className="p-4 text-right text-emerald-400">PPh Final (0.5%)</th>}
+                                    {taxMode === 'NORMAL' && (
+                                        <>
+                                            <th className="p-4 text-right text-blue-400">DPP (Tax Base)</th>
+                                            <th className="p-4 text-right text-amber-400">PPN (11%)</th>
+                                        </>
+                                    )}
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-lumina-highlight/50">
+                                {taxReport.map(item => (
+                                    <tr key={item.id} className="hover:bg-lumina-highlight/10">
+                                        <td className="p-4 font-mono text-xs text-lumina-muted">{new Date(item.date).toLocaleDateString()}</td>
+                                        <td className="p-4 text-white font-medium">{item.desc}</td>
+                                        <td className="p-4 text-right font-mono">Rp {item.bruto.toLocaleString()}</td>
+                                        {taxMode === 'UMKM' && (
+                                            <td className="p-4 text-right font-mono font-bold text-emerald-400">Rp {item.pphFinal.toLocaleString()}</td>
+                                        )}
+                                        {taxMode === 'NORMAL' && (
+                                            <>
+                                                <td className="p-4 text-right font-mono text-blue-300">Rp {item.dpp.toLocaleString()}</td>
+                                                <td className="p-4 text-right font-mono font-bold text-amber-400">Rp {item.ppn.toLocaleString()}</td>
+                                            </>
+                                        )}
+                                    </tr>
+                                ))}
+                            </tbody>
+                            <tfoot className="bg-lumina-highlight/20 border-t border-lumina-highlight font-bold">
+                                <tr>
+                                    <td colSpan={2} className="p-4 text-white text-right">TOTAL</td>
+                                    <td className="p-4 text-right text-white">
+                                        Rp {taxReport.reduce((a,b) => a + b.bruto, 0).toLocaleString()}
+                                    </td>
+                                    {taxMode === 'UMKM' && (
+                                        <td className="p-4 text-right text-emerald-400">
+                                            Rp {taxReport.reduce((a,b) => a + b.pphFinal, 0).toLocaleString()}
+                                        </td>
+                                    )}
+                                    {taxMode === 'NORMAL' && (
+                                        <>
+                                            <td className="p-4 text-right text-blue-300">
+                                                Rp {taxReport.reduce((a,b) => a + b.dpp, 0).toLocaleString()}
+                                            </td>
+                                            <td className="p-4 text-right text-amber-400">
+                                                Rp {taxReport.reduce((a,b) => a + b.ppn, 0).toLocaleString()}
+                                            </td>
+                                        </>
+                                    )}
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
                 </div>
             </Motion.div>
         )}

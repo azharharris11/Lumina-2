@@ -18,9 +18,9 @@ export interface User {
   avatar: string;
   phone: string;
   status: 'ACTIVE' | 'INACTIVE' | 'ON_LEAVE';
-  specialization?: string;
-  commissionRate?: number;
   joinedDate: string;
+  commissionRate?: number;
+  specialization?: string;
   unavailableDates?: string[];
   hasCompletedOnboarding?: boolean;
   studioFocus?: string;
@@ -47,9 +47,9 @@ export interface Transaction {
   status: 'PENDING' | 'COMPLETED';
   bookingId?: string;
   receiptUrl?: string;
-  isRecurring?: boolean;
-  submittedBy?: string;
   ownerId?: string;
+  submittedBy?: string;
+  isRecurring?: boolean;
 }
 
 export interface BookingItem {
@@ -58,76 +58,76 @@ export interface BookingItem {
   quantity: number;
   unitPrice: number;
   total: number;
-  cost?: number; // COGS per item
+  cost?: number;
 }
 
 export interface PackageCostItem {
-    id: string;
-    description: string;
-    amount: number;
-    category: 'LABOR' | 'MATERIAL' | 'OTHER';
+  id: string;
+  description: string;
+  amount: number;
+  category: string;
 }
 
 export interface Package {
   id: string;
   name: string;
   price: number;
-  duration: number; // in hours
+  duration: number;
   features: string[];
   active: boolean;
-  archived?: boolean;
-  turnaroundDays?: number;
   costBreakdown?: PackageCostItem[];
+  turnaroundDays?: number;
+  archived?: boolean;
   defaultTasks?: string[];
   defaultAssetIds?: string[];
   ownerId?: string;
 }
 
 export interface Discount {
-    type: 'PERCENT' | 'FIXED';
-    value: number;
-    code?: string;
+  type: 'PERCENT' | 'FIXED';
+  value: number;
+  code?: string;
 }
 
 export interface TimeLog {
-    id: string;
-    userId: string;
-    startTime: string;
-    endTime?: string;
-    duration?: number; // Minutes
-    note?: string;
+  id: string;
+  userId: string;
+  startTime: string;
+  endTime?: string;
+  duration?: number; // minutes
+  description?: string;
 }
 
 export interface BookingTask {
-    id: string;
-    title: string;
-    completed: boolean;
+  id: string;
+  title: string;
+  completed: boolean;
+  assignedTo?: string;
+  dueDate?: string;
 }
 
 export interface ActivityLog {
-    id: string;
-    timestamp: string;
-    action: string;
-    details: string;
-    userId: string;
-    userName: string;
+  id: string;
+  timestamp: string;
+  action: string;
+  details?: string;
+  userId: string;
+  userName: string;
 }
 
 export interface BookingFile {
-    id: string;
-    name: string;
-    url: string;
-    type: 'CONTRACT' | 'INVOICE' | 'RECEIPT' | 'DELIVERABLE';
-    uploadedAt: string;
+  id: string;
+  url: string;
+  name: string;
+  type: 'IMAGE' | 'VIDEO' | 'DOCUMENT';
+  uploadedAt: string;
 }
 
 export interface BookingComment {
-    id: string;
-    userId: string;
-    userName: string;
-    userAvatar: string;
-    text: string;
-    timestamp: string;
+  id: string;
+  userId: string;
+  text: string;
+  timestamp: string;
 }
 
 export interface Booking {
@@ -139,6 +139,7 @@ export interface Booking {
   timeStart: string;
   duration: number;
   package: string;
+  packageId?: string;
   price: number;
   paidAmount: number;
   status: ProjectStatus;
@@ -147,11 +148,11 @@ export interface Booking {
   studio: string;
   contractStatus: 'PENDING' | 'SIGNED';
   contractSignedDate?: string;
-  contractSignature?: string; // Base64 or URL
+  contractSignature?: string; 
   items?: BookingItem[];
   notes?: string;
   discount?: Discount;
-  deliveryUrl?: string; // Google Drive Link
+  deliveryUrl?: string; 
   tasks?: BookingTask[];
   logs?: ActivityLog[];
   files?: BookingFile[];
@@ -160,6 +161,7 @@ export interface Booking {
   taxSnapshot?: number;
   costSnapshot?: PackageCostItem[];
   ownerId?: string;
+  selectedImageIds?: string[]; 
 }
 
 export interface Asset {
@@ -171,8 +173,8 @@ export interface Asset {
   purchaseDate?: string;
   value?: number;
   assignedToUserId?: string;
-  notes?: string;
   returnDate?: string;
+  notes?: string;
   ownerId?: string;
 }
 
@@ -181,10 +183,9 @@ export interface Client {
   name: string;
   phone: string;
   email: string;
-  category: string; // Dynamic: VIP, Regular, etc.
+  category: string;
   notes?: string;
-  instagram?: string;
-  joinedDate?: string;
+  joinedDate: string;
   avatar?: string;
   ownerId?: string;
 }
@@ -196,38 +197,35 @@ export interface Notification {
   time: string;
   read: boolean;
   type: 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR';
-  link?: string;
 }
 
 export interface StudioRoom {
-    id: string;
-    name: string;
-    type: 'INDOOR' | 'OUTDOOR' | 'CYCLORAMA';
-    color: string;
+  id: string;
+  name: string;
+  type: 'INDOOR' | 'OUTDOOR';
+  color: string;
 }
 
 export interface WorkflowAutomation {
     id: string;
     triggerStatus: ProjectStatus;
+    triggerPackageId?: string; 
     tasks: string[];
-    assignToUserId?: string; // NEW: Auto-assign logic
+    assignToUserId?: string;
 }
 
 export interface WhatsAppTemplates {
-  booking: string;
-  reminder: string;
-  thanks: string;
+    booking: string;
+    reminder: string;
+    thanks: string;
 }
 
 export interface MonthlyMetric {
     month: string;
     revenue: number;
     expenses: number;
-    profit: number;
     bookings: number;
 }
-
-// --- SITE BUILDER TYPES ---
 
 export interface SiteGalleryItem {
     id: string;
@@ -240,7 +238,6 @@ export interface SiteTestimonial {
     clientName: string;
     text: string;
     rating: number;
-    image?: string;
 }
 
 export interface SiteFAQ {
@@ -257,10 +254,9 @@ export interface SiteSection {
         subheadline?: string;
         description?: string;
         image?: string;
-        buttonText?: string;
-        buttonLink?: string;
-        items?: { title: string; text: string; icon?: string }[];
         layout?: 'LEFT' | 'RIGHT' | 'CENTER';
+        buttonText?: string;
+        items?: { title: string; text: string }[];
     };
 }
 
@@ -275,7 +271,7 @@ export interface SitePage {
     showPricing: boolean;
     showBookingWidget: boolean;
     gallery: SiteGalleryItem[];
-    sections: SiteSection[];
+    sections?: SiteSection[];
 }
 
 export interface SitePixels {
@@ -291,7 +287,8 @@ export interface SiteConfig {
     headline: string;
     description: string;
     theme: SiteTheme;
-    font?: SiteFont; // NEW: Font customization
+    font?: SiteFont;
+    customCss?: string;
     heroImage: string;
     showPricing: boolean;
     showTeam: boolean;
@@ -373,6 +370,7 @@ export interface StudioConfig {
   
   defaultTurnaroundDays?: number;
   workflowAutomations?: WorkflowAutomation[];
+  isLiteMode?: boolean; 
 
   logoUrl?: string;
   npwp?: string;
@@ -388,8 +386,7 @@ export interface StudioConfig {
   ownerId?: string;
 }
 
-// --- COMPONENT PROPS ---
-
+// ... (Component Props)
 export interface SidebarProps {
   currentUser: User;
   onNavigate: (view: string) => void;
@@ -399,13 +396,14 @@ export interface SidebarProps {
   isDarkMode?: boolean;
   onToggleTheme?: () => void;
   bookings?: Booking[];
+  config?: StudioConfig; 
 }
 
 export interface DashboardProps {
   user: User;
   bookings: Booking[];
   transactions: Transaction[];
-  assets?: Asset[]; // NEW: For inventory alerts
+  assets?: Asset[]; 
   onSelectBooking: (id: string) => void;
   selectedDate: string;
   onNavigate: (view: string) => void;
@@ -478,7 +476,10 @@ export interface SettingsViewProps {
   currentUser?: User;
   onUpdateUserProfile?: (user: User) => void;
   onDeleteAccount?: () => void;
-  users?: User[]; // NEW: for assigning automation
+  users?: User[]; 
+  googleToken?: string | null;
+  setGoogleToken?: (token: string | null) => void;
+  assets?: Asset[];
 }
 
 export interface SiteBuilderViewProps {

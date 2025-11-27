@@ -3,8 +3,9 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Booking, ProjectStatus, User, BookingFile, StudioConfig, Package, BookingItem, BookingTask, ActivityLog, Asset, BookingComment, Discount, TimeLog, Transaction, Account } from '../types';
-import { X, Image as ImageIcon, FileSignature, Clock, CheckCircle2, Circle, Upload, PenTool, Download, Calendar, Save, Trash2, Edit, Plus, Loader2, FileText, ExternalLink, Paperclip, Check, Send, RefreshCw, AlertCircle, Lock, Timer, ListChecks, History, DollarSign, User as UserIcon, MapPin, Briefcase, Camera, Box, Wrench, AlertTriangle, TrendingUp, Tag, MessageSquare, Play, Square, Pause, PieChart, MinusCircle, ChevronRight, HardDrive, LayoutDashboard, FolderOpen, Palette, ArrowLeft, Folder, MoreVertical, FolderPlus, Eye, MessageCircle, Copy, RefreshCcw, Eraser } from 'lucide-react';
+import { X, Image as ImageIcon, FileSignature, Clock, CheckCircle2, Circle, Upload, PenTool, Download, Calendar, Save, Trash2, Edit, Plus, Loader2, FileText, ExternalLink, Paperclip, Check, Send, RefreshCw, AlertCircle, Lock, Timer, ListChecks, History, DollarSign, User as UserIcon, MapPin, Briefcase, Camera, Box, Wrench, AlertTriangle, TrendingUp, Tag, MessageSquare, Play, Square, Pause, PieChart, MinusCircle, ChevronRight, HardDrive, LayoutDashboard, FolderOpen, Palette, ArrowLeft, Folder, MoreVertical, FolderPlus, Eye, MessageCircle, Copy, RefreshCcw, Eraser, Heart } from 'lucide-react';
 import WhatsAppModal from './WhatsAppModal'; 
+import { jsPDF } from 'jspdf'; // Already in importmap
 
 // ... existing interface ...
 interface ProjectDrawerProps {
@@ -87,7 +88,7 @@ const ProjectDrawer: React.FC<ProjectDrawerProps> = ({ isOpen, onClose, booking,
   
   const [showWhatsAppPrompt, setShowWhatsAppPrompt] = useState(false);
 
-  // Contract Signature State (Simple implementation without heavy canvas lib)
+  // Contract Signature State
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isSigning, setIsSigning] = useState(false);
 
@@ -182,6 +183,19 @@ const ProjectDrawer: React.FC<ProjectDrawerProps> = ({ isOpen, onClose, booking,
   const handleQuickWhatsApp = () => { const url = `https://wa.me/${booking?.clientPhone.replace(/\D/g, '')}`; window.open(url, '_blank'); };
   const handleCopyPortalLink = () => { const link = `${window.location.origin}/?site=${config?.ownerId || ''}&booking=${booking?.id}`; navigator.clipboard.writeText(link); alert("Link Copied!"); };
 
+  // Proofing Logic
+  const handleToggleImageSelection = (fileId: string) => {
+      if (!booking) return;
+      const currentSelection = booking.selectedImageIds || [];
+      let newSelection;
+      if (currentSelection.includes(fileId)) {
+          newSelection = currentSelection.filter(id => id !== fileId);
+      } else {
+          newSelection = [...currentSelection, fileId];
+      }
+      onUpdateBooking({ ...booking, selectedImageIds: newSelection });
+  };
+
   // Signature Logic
   const startDrawing = (e: React.MouseEvent) => {
       const canvas = canvasRef.current;
@@ -222,6 +236,52 @@ const ProjectDrawer: React.FC<ProjectDrawerProps> = ({ isOpen, onClose, booking,
           });
           alert("Contract Signed Successfully!");
       }
+  };
+
+  const generateContractPDF = () => {
+      if (!booking || !booking.contractSignature) return;
+      
+      const doc = new jsPDF();
+      
+      // Header
+      doc.setFontSize(22);
+      doc.text("SERVICE AGREEMENT", 105, 20, { align: "center" });
+      
+      doc.setFontSize(12);
+      doc.text(`Booking Ref: ${booking.id}`, 20, 40);
+      doc.text(`Date: ${new Date().toLocaleDateString()}`, 20, 48);
+      
+      // Parties
+      doc.setFontSize(14);
+      doc.text("Parties", 20, 65);
+      doc.setFontSize(10);
+      doc.text(`Studio: ${config?.name}`, 20, 72);
+      doc.text(`Client: ${booking.clientName}`, 20, 78);
+      
+      // Details
+      doc.setFontSize(14);
+      doc.text("Session Details", 20, 95);
+      doc.setFontSize(10);
+      doc.text(`Package: ${booking.package}`, 20, 102);
+      doc.text(`Session Date: ${booking.date}`, 20, 108);
+      doc.text(`Location: ${booking.studio}`, 20, 114);
+      doc.text(`Total Price: Rp ${booking.price.toLocaleString()}`, 20, 120);
+      
+      // Terms (Dummy)
+      doc.setFontSize(14);
+      doc.text("Terms & Conditions", 20, 135);
+      doc.setFontSize(9);
+      const terms = "1. Non-refundable deposit required.\n2. Rescheduling allowed up to 48h prior.\n3. Copyright remains with photographer for portfolio use.\n4. Deliverables within agreed turnaround time.";
+      doc.text(terms, 20, 142);
+      
+      // Signature
+      doc.setFontSize(14);
+      doc.text("Signatures", 20, 170);
+      doc.addImage(booking.contractSignature, 'PNG', 20, 175, 60, 30);
+      doc.setFontSize(8);
+      doc.text(`Signed digitally by ${booking.clientName} on ${new Date(booking.contractSignedDate!).toLocaleString()}`, 20, 210);
+      
+      doc.save(`Contract_${booking.id}.pdf`);
   };
 
   if (!isOpen || !booking) return null;
@@ -428,6 +488,12 @@ const ProjectDrawer: React.FC<ProjectDrawerProps> = ({ isOpen, onClose, booking,
                                     <img src={booking.contractSignature} alt="Signature" className="h-20"/>
                                 </div>
                             )}
+                            <button 
+                                onClick={generateContractPDF}
+                                className="mt-4 px-6 py-3 bg-lumina-accent text-lumina-base font-bold rounded-lg hover:bg-lumina-accent/90 transition-colors flex items-center gap-2 mx-auto"
+                            >
+                                <Download size={18}/> Download Legal PDF
+                            </button>
                         </div>
                     ) : (
                         <div className="w-full max-w-md space-y-4">
@@ -541,9 +607,9 @@ const ProjectDrawer: React.FC<ProjectDrawerProps> = ({ isOpen, onClose, booking,
                 <div className="bg-lumina-surface border border-lumina-highlight rounded-2xl p-6 min-h-[400px]">
                     <div className="flex justify-between items-center mb-6">
                         <div>
-                            <h3 className="font-bold text-white flex items-center gap-2"><Eye size={18} className="text-lumina-accent"/> Proofing</h3>
+                            <h3 className="font-bold text-white flex items-center gap-2"><Eye size={18} className="text-lumina-accent"/> Interactive Proofing</h3>
                             <p className="text-xs text-lumina-muted mt-1">
-                                {proofingFiles.length > 0 ? `${proofingFiles.length} images linked.` : 'No images found.'}
+                                {proofingFiles.length > 0 ? `${proofingFiles.length} images linked. ${(booking.selectedImageIds || []).length} selected.` : 'No images found.'}
                             </p>
                         </div>
                         <button onClick={fetchProofingFiles} className="p-2 bg-lumina-highlight hover:bg-white hover:text-black rounded-lg transition-colors" title="Refresh">
@@ -569,20 +635,29 @@ const ProjectDrawer: React.FC<ProjectDrawerProps> = ({ isOpen, onClose, booking,
                         </div>
                     ) : (
                         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                            {proofingFiles.map((file) => (
-                                <div key={file.id} className="aspect-square bg-lumina-base border border-lumina-highlight rounded-lg overflow-hidden relative group hover:border-lumina-accent transition-colors cursor-pointer">
-                                    {file.thumbnailLink ? (
-                                        <img src={file.thumbnailLink.replace('=s220', '=s400')} className="w-full h-full object-cover" loading="lazy" />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-lumina-muted"><ImageIcon size={24}/></div>
-                                    )}
-                                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                                        <a href={file.webViewLink} target="_blank" className="p-2 bg-white text-black rounded-full hover:scale-110 transition-transform" title="View in Drive">
-                                            <ExternalLink size={14}/>
-                                        </a>
+                            {proofingFiles.map((file) => {
+                                const isSelected = (booking.selectedImageIds || []).includes(file.id);
+                                return (
+                                    <div 
+                                        key={file.id} 
+                                        className={`aspect-square bg-lumina-base border rounded-lg overflow-hidden relative group transition-all cursor-pointer ${isSelected ? 'border-emerald-500 ring-2 ring-emerald-500/30' : 'border-lumina-highlight hover:border-lumina-accent'}`}
+                                        onClick={() => handleToggleImageSelection(file.id)}
+                                    >
+                                        {file.thumbnailLink ? (
+                                            <img src={file.thumbnailLink.replace('=s220', '=s400')} className="w-full h-full object-cover" loading="lazy" />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-lumina-muted"><ImageIcon size={24}/></div>
+                                        )}
+                                        
+                                        {/* Overlay */}
+                                        <div className={`absolute inset-0 bg-black/50 transition-opacity flex items-center justify-center gap-2 ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                                            <div className={`p-2 rounded-full ${isSelected ? 'bg-emerald-500 text-white' : 'bg-white/20 text-white hover:bg-emerald-500'}`}>
+                                                <Heart size={20} fill={isSelected ? "white" : "none"} />
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
+                                )
+                            })}
                         </div>
                     )}
                 </div>
