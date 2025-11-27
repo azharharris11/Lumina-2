@@ -1,12 +1,12 @@
 
-// ... existing imports
+// ... existing imports ...
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { SiteBuilderViewProps, SiteGalleryItem, SitePage, SiteSection, SectionType, SiteTheme, SiteFont } from '../types';
-import { Globe, Smartphone, Monitor, Save, Layout, Type, Image as ImageIcon, Palette, Check, Megaphone, Trash2, Plus, ArrowLeft, Sliders, File, Home, Layers, ArrowUp, ArrowDown, GripVertical, PanelLeftClose, PanelLeftOpen, ChevronUp, ChevronDown, RefreshCw, Code } from 'lucide-react';
+import { SiteBuilderViewProps, SiteGalleryItem, SitePage, SiteSection, SectionType, SiteTheme, SiteFont, PublicBookingSubmission } from '../types';
+import { Globe, Smartphone, Monitor, Save, Layout, Type, Image as ImageIcon, Palette, Check, Megaphone, Trash2, Plus, ArrowLeft, Sliders, File, Home, Layers, ArrowUp, ArrowDown, GripVertical, PanelLeftClose, PanelLeftOpen, ChevronUp, ChevronDown, RefreshCw, Code, Maximize2, Minimize2 } from 'lucide-react';
 import SitePreviewFrame from '../components/site-builder/SitePreviewFrame';
 
-// Themes (Import remains same)
+// ... Themes import ...
 import NoirTheme from '../components/site-builder/themes/NoirTheme';
 import EtherealTheme from '../components/site-builder/themes/EtherealTheme';
 import VogueTheme from '../components/site-builder/themes/VogueTheme';
@@ -24,6 +24,7 @@ const Motion = motion as any;
 
 interface ExtendedSiteBuilderViewProps extends SiteBuilderViewProps {
     onExit?: () => void;
+    showToast?: (msg: string, type: any) => void;
 }
 
 const THEMES: {id: SiteTheme, label: string, color: string, textColor: string}[] = [
@@ -48,7 +49,7 @@ const FONTS: {id: SiteFont, label: string, desc: string}[] = [
     { id: 'MONO', label: 'Technical Mono', desc: 'Raw, brutalist (Monospace)' }
 ];
 
-const SiteBuilderView: React.FC<ExtendedSiteBuilderViewProps> = ({ config, packages, users, bookings, onUpdateConfig, onExit, onPublicBooking }) => {
+const SiteBuilderView: React.FC<ExtendedSiteBuilderViewProps> = ({ config, packages, users, bookings, onUpdateConfig, onExit, onPublicBooking, showToast }) => {
   const [localSite, setLocalSite] = useState(config.site);
   const [previewMode, setPreviewMode] = useState<'DESKTOP' | 'MOBILE'>('DESKTOP');
   const [activeTab, setActiveTab] = useState<'CONTENT' | 'SECTIONS' | 'GALLERY' | 'COMPONENTS' | 'SEO' | 'MARKETING' | 'PAGES'>('SECTIONS');
@@ -61,16 +62,16 @@ const SiteBuilderView: React.FC<ExtendedSiteBuilderViewProps> = ({ config, packa
   // Sidebar & Layout State
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [isFullscreen, setIsFullscreen] = useState(false); // NEW
 
   // ... (Responsive listener & Auto Migration & publicUrl & activePageData calculation remain same) ...
-  // Responsive Listener
   useEffect(() => {
     const handleResize = () => {
         const mobile = window.innerWidth < 768;
         setIsMobile(mobile);
-        if (mobile) setIsSidebarOpen(false); // Close by default on mobile
+        if (mobile) setIsSidebarOpen(false); 
     };
-    handleResize(); // Init
+    handleResize(); 
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
@@ -78,114 +79,39 @@ const SiteBuilderView: React.FC<ExtendedSiteBuilderViewProps> = ({ config, packa
   // --- AUTO MIGRATION: Convert Legacy Home to Sections ---
   useEffect(() => {
       const homePage = localSite.pages?.find(p => p.id === 'home' || p.slug === 'home');
-      
       if (!homePage) {
-          console.log("Migrating Home Page to Blocks...");
+          // ... (Migration logic same as before) ...
           const newSections: SiteSection[] = [];
-
-          // 1. Hero
-          newSections.push({
-              id: 'home-hero',
-              type: 'HERO',
-              content: {
-                  headline: localSite.headline,
-                  description: localSite.description,
-                  image: localSite.heroImage,
-                  subheadline: 'Welcome'
-              }
-          });
-
-          // 2. Gallery (if populated)
-          if (localSite.showPortfolio && localSite.gallery.length > 0) {
-              newSections.push({
-                  id: 'home-gallery',
-                  type: 'GALLERY',
-                  content: {}
-              });
-          }
-
-          // 3. Pricing (if enabled)
-          if (localSite.showPricing) {
-              newSections.push({
-                  id: 'home-pricing',
-                  type: 'PRICING',
-                  content: { headline: 'Our Collections' }
-              });
-          }
-
-          // 4. Booking Widget
-          if (localSite.showBookingWidget) {
-              newSections.push({
-                  id: 'home-cta',
-                  type: 'CTA_BANNER',
-                  content: {
-                      headline: 'Ready to Book?',
-                      buttonText: 'Reserve Now'
-                  }
-              });
-          }
-
+          newSections.push({ id: 'home-hero', type: 'HERO', content: { headline: localSite.headline, description: localSite.description, image: localSite.heroImage, subheadline: 'Welcome' } });
+          if (localSite.showPortfolio && localSite.gallery.length > 0) { newSections.push({ id: 'home-gallery', type: 'GALLERY', content: {} }); }
+          if (localSite.showPricing) { newSections.push({ id: 'home-pricing', type: 'PRICING', content: { headline: 'Our Collections' } }); }
+          if (localSite.showBookingWidget) { newSections.push({ id: 'home-cta', type: 'CTA_BANNER', content: { headline: 'Ready to Book?', buttonText: 'Reserve Now' } }); }
           const newHomePage: SitePage = {
-              id: 'home',
-              title: 'Home',
-              slug: 'home',
-              headline: localSite.headline,
-              description: localSite.description,
-              heroImage: localSite.heroImage,
-              showPortfolio: localSite.showPortfolio,
-              showPricing: localSite.showPricing,
-              showBookingWidget: localSite.showBookingWidget,
-              gallery: localSite.gallery,
-              sections: newSections
+              id: 'home', title: 'Home', slug: 'home', headline: localSite.headline, description: localSite.description, heroImage: localSite.heroImage, showPortfolio: localSite.showPortfolio, showPricing: localSite.showPricing, showBookingWidget: localSite.showBookingWidget, gallery: localSite.gallery, sections: newSections
           };
-
-          setLocalSite(prev => ({
-              ...prev,
-              pages: [newHomePage, ...(prev.pages || [])]
-          }));
+          setLocalSite(prev => ({ ...prev, pages: [newHomePage, ...(prev.pages || [])] }));
           setActivePageId('home');
       }
-  }, []); // Run once on mount
+  }, []); 
 
   const publicUrl = `${window.location.origin}?site=${config.ownerId || 'me'}`;
 
   const activePageData = useMemo(() => {
-      if (activePageId === 'HOME') {
-          return localSite.pages?.find(p => p.id === 'home') || localSite;
-      }
+      if (activePageId === 'HOME') { return localSite.pages?.find(p => p.id === 'home') || localSite; }
       return localSite.pages?.find(p => p.id === activePageId) || localSite;
   }, [activePageId, localSite]);
 
   const handleContentChange = (key: string, value: any) => {
       setHasChanges(true);
-      // Update the page in the pages array
-      setLocalSite(prev => ({
-          ...prev,
-          pages: prev.pages?.map(p => (p.id === activePageId || (activePageId==='HOME' && p.id==='home')) ? { ...p, [key]: value } : p) || []
-      }));
+      setLocalSite(prev => ({ ...prev, pages: prev.pages?.map(p => (p.id === activePageId || (activePageId==='HOME' && p.id==='home')) ? { ...p, [key]: value } : p) || [] }));
   };
 
-  const getActiveSections = () => {
-      return (activePageData as SitePage).sections || [];
-  };
-
-  const updateSections = (newSections: SiteSection[]) => {
-      handleContentChange('sections', newSections);
-  };
+  const getActiveSections = () => { return (activePageData as SitePage).sections || []; };
+  const updateSections = (newSections: SiteSection[]) => { handleContentChange('sections', newSections); };
 
   // ... (Section handlers remain same) ...
   const handleAddSection = (type: SectionType) => {
-      const newSection: SiteSection = {
-          id: `sec-${Date.now()}`,
-          type,
-          content: {
-              headline: 'New Section',
-              description: 'Add your content here.',
-              image: 'https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?auto=format&fit=crop&w=800&q=80',
-              layout: 'LEFT',
-              items: type === 'FEATURES' ? [{title: 'Feature 1', text: 'Detail'}] : undefined
-          }
-      };
+      const newSection: SiteSection = { id: `sec-${Date.now()}`, type, content: { headline: 'New Section', description: 'Add your content here.', image: 'https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?auto=format&fit=crop&w=800&q=80', layout: 'LEFT', items: type === 'FEATURES' ? [{title: 'Feature 1', text: 'Detail'}] : undefined } };
       updateSections([...getActiveSections(), newSection]);
       setSelectedSectionId(newSection.id);
       if (activeTab !== 'SECTIONS') setActiveTab('SECTIONS');
@@ -196,92 +122,36 @@ const SiteBuilderView: React.FC<ExtendedSiteBuilderViewProps> = ({ config, packa
       updateSections(sections);
   };
 
-  const handleDeleteSection = (id: string) => {
-      if(window.confirm('Delete this section?')) {
-          updateSections(getActiveSections().filter(s => s.id !== id));
-          if (selectedSectionId === id) setSelectedSectionId(null);
-      }
-  };
-
-  const handleMoveSection = (index: number, direction: 'UP' | 'DOWN') => {
+  const handleDeleteSection = (id: string) => { if(window.confirm('Delete this section?')) { updateSections(getActiveSections().filter(s => s.id !== id)); if (selectedSectionId === id) setSelectedSectionId(null); } };
+  const handleMoveSection = (index: number, direction: 'UP' | 'DOWN') => { /* ... existing logic ... */ 
       const sections = [...getActiveSections()];
-      if (direction === 'UP' && index > 0) {
-          [sections[index], sections[index - 1]] = [sections[index - 1], sections[index]];
-      } else if (direction === 'DOWN' && index < sections.length - 1) {
-          [sections[index], sections[index + 1]] = [sections[index + 1], sections[index]];
-      }
+      if (direction === 'UP' && index > 0) { [sections[index], sections[index - 1]] = [sections[index - 1], sections[index]]; } 
+      else if (direction === 'DOWN' && index < sections.length - 1) { [sections[index], sections[index + 1]] = [sections[index + 1], sections[index]]; }
       updateSections(sections);
   };
 
-  const handleGlobalChange = (key: string, value: any) => {
-      setLocalSite(prev => ({ ...prev, [key]: value }));
-      setHasChanges(true);
-  };
-
-  const handleAddPage = () => {
+  const handleGlobalChange = (key: string, value: any) => { setLocalSite(prev => ({ ...prev, [key]: value })); setHasChanges(true); };
+  const handleAddPage = () => { /* ... existing logic ... */ 
       if (newPageName.trim()) {
           const slug = newPageName.toLowerCase().replace(/\s+/g, '-');
-          const newPage: SitePage = {
-              id: `p-${Date.now()}`,
-              title: newPageName,
-              slug: slug,
-              headline: newPageName,
-              description: 'Add your page description here.',
-              heroImage: 'https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&w=800&q=80',
-              showPortfolio: true,
-              showPricing: false,
-              showBookingWidget: true,
-              gallery: [],
-              sections: [
-                  {
-                      id: `hero-${Date.now()}`,
-                      type: 'HERO',
-                      content: { headline: newPageName, description: 'Welcome to this page', image: 'https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&w=800&q=80' }
-                  }
-              ] 
-          };
+          const newPage: SitePage = { id: `p-${Date.now()}`, title: newPageName, slug: slug, headline: newPageName, description: 'Add your page description here.', heroImage: 'https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&w=800&q=80', showPortfolio: true, showPricing: false, showBookingWidget: true, gallery: [], sections: [ { id: `hero-${Date.now()}`, type: 'HERO', content: { headline: newPageName, description: 'Welcome to this page', image: 'https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&w=800&q=80' } } ] };
           setLocalSite(prev => ({ ...prev, pages: [...(prev.pages || []), newPage] }));
           setNewPageName('');
           setHasChanges(true);
           setActivePageId(newPage.id);
       }
   };
-
-  const handleDeletePage = (id: string) => {
-      if (id === 'home') {
-          alert("Cannot delete Home page.");
-          return;
-      }
-      if (window.confirm('Are you sure? This page will be deleted.')) {
-          setLocalSite(prev => ({ ...prev, pages: prev.pages?.filter(p => p.id !== id) || [] }));
-          if (activePageId === id) setActivePageId('home');
-          setHasChanges(true);
-      }
+  const handleDeletePage = (id: string) => { /* ... existing logic ... */ 
+      if (id === 'home') { alert("Cannot delete Home page."); return; }
+      if (window.confirm('Are you sure? This page will be deleted.')) { setLocalSite(prev => ({ ...prev, pages: prev.pages?.filter(p => p.id !== id) || [] })); if (activePageId === id) setActivePageId('home'); setHasChanges(true); }
   };
 
-  const handleSave = () => {
-      onUpdateConfig({ ...config, site: localSite });
-      setHasChanges(false);
-  };
+  const handleSave = () => { onUpdateConfig({ ...config, site: localSite }); setHasChanges(false); if(showToast) showToast('Changes saved', 'SUCCESS'); };
 
   // Render Theme Logic
   const renderTheme = () => {
-      const commonProps = { 
-          site: localSite, 
-          activePage: activePageData, 
-          packages, 
-          users, 
-          bookings, 
-          config, 
-          onBooking: onPublicBooking,
-          onNavigate: (pageId: string) => {
-              if (pageId === 'HOME') setActivePageId('home');
-              else setActivePageId(pageId);
-          }
-      };
-
-      // Wrap theme component in a div that applies the selected font
-      // The SitePreviewFrame injects tailwind config, we'll use inline styles or specific classes
+      // ... existing renderTheme Logic ...
+      const commonProps = { site: localSite, activePage: activePageData, packages, users, bookings, config, onBooking: onPublicBooking, onNavigate: (pageId: string) => { if (pageId === 'HOME') setActivePageId('home'); else setActivePageId(pageId); } };
       let fontClass = 'font-sans';
       if (localSite.font === 'SERIF') fontClass = 'font-serif';
       if (localSite.font === 'DISPLAY') fontClass = 'font-display';
@@ -303,7 +173,6 @@ const SiteBuilderView: React.FC<ExtendedSiteBuilderViewProps> = ({ config, packa
               default: return <NoirTheme {...commonProps} />;
           }
       })();
-
       return <div className={fontClass}>{themeComponent}</div>;
   };
 
@@ -317,114 +186,36 @@ const SiteBuilderView: React.FC<ExtendedSiteBuilderViewProps> = ({ config, packa
                   <span className="text-[10px] font-bold uppercase text-white bg-lumina-accent/20 text-lumina-accent px-2 py-0.5 rounded border border-lumina-accent/20">{section.type.replace('_', ' ')}</span>
                   <button onClick={() => handleDeleteSection(section.id)} className="text-lumina-muted hover:text-rose-500 transition-colors"><Trash2 size={14}/></button>
               </div>
+              {/* ... Inputs for headline, desc, image, items ... */}
               {section.type !== 'GALLERY' && section.type !== 'PRICING' && section.type !== 'TESTIMONIALS' && section.type !== 'FAQ' && (
-                  <div>
-                      <label className="text-[10px] text-lumina-muted uppercase block mb-1 font-bold">Headline</label>
-                      <input 
-                          value={section.content.headline || ''}
-                          onChange={(e) => handleUpdateSection(section.id, { headline: e.target.value })}
-                          className="w-full bg-lumina-surface border border-lumina-highlight rounded-lg p-2 text-xs text-white focus:border-lumina-accent outline-none"
-                      />
-                  </div>
+                  <div><label className="text-[10px] text-lumina-muted uppercase block mb-1 font-bold">Headline</label><input value={section.content.headline || ''} onChange={(e) => handleUpdateSection(section.id, { headline: e.target.value })} className="w-full bg-lumina-surface border border-lumina-highlight rounded-lg p-2 text-xs text-white focus:border-lumina-accent outline-none"/></div>
               )}
               {(section.type === 'HERO' || section.type === 'TEXT_IMAGE' || section.type === 'CTA_BANNER') && (
-                  <div>
-                      <label className="text-[10px] text-lumina-muted uppercase block mb-1 font-bold">Description</label>
-                      <textarea 
-                          value={section.content.description || ''}
-                          onChange={(e) => handleUpdateSection(section.id, { description: e.target.value })}
-                          className="w-full bg-lumina-surface border border-lumina-highlight rounded-lg p-2 text-xs text-white focus:border-lumina-accent outline-none min-h-[80px]"
-                      />
-                  </div>
+                  <div><label className="text-[10px] text-lumina-muted uppercase block mb-1 font-bold">Description</label><textarea value={section.content.description || ''} onChange={(e) => handleUpdateSection(section.id, { description: e.target.value })} className="w-full bg-lumina-surface border border-lumina-highlight rounded-lg p-2 text-xs text-white focus:border-lumina-accent outline-none min-h-[80px]"/></div>
               )}
               {(section.type === 'HERO' || section.type === 'TEXT_IMAGE') && (
-                  <div>
-                      <label className="text-[10px] text-lumina-muted uppercase block mb-1 font-bold">Image URL</label>
-                      <div className="flex gap-2">
-                          <input 
-                              value={section.content.image || ''}
-                              onChange={(e) => handleUpdateSection(section.id, { image: e.target.value })}
-                              className="w-full bg-lumina-surface border border-lumina-highlight rounded-lg p-2 text-xs text-white focus:border-lumina-accent outline-none"
-                          />
-                          {section.content.image && <img src={section.content.image} className="w-8 h-8 rounded object-cover border border-lumina-highlight" />}
-                      </div>
-                  </div>
+                  <div><label className="text-[10px] text-lumina-muted uppercase block mb-1 font-bold">Image URL</label><div className="flex gap-2"><input value={section.content.image || ''} onChange={(e) => handleUpdateSection(section.id, { image: e.target.value })} className="w-full bg-lumina-surface border border-lumina-highlight rounded-lg p-2 text-xs text-white focus:border-lumina-accent outline-none"/>{section.content.image && <img src={section.content.image} className="w-8 h-8 rounded object-cover border border-lumina-highlight" />}</div></div>
               )}
               {section.type === 'TEXT_IMAGE' && (
-                  <div>
-                      <label className="text-[10px] text-lumina-muted uppercase block mb-1 font-bold">Layout</label>
-                      <div className="flex bg-lumina-surface rounded-lg p-1 border border-lumina-highlight">
-                          {['LEFT', 'RIGHT', 'CENTER'].map((layout) => (
-                              <button 
-                                  key={layout}
-                                  onClick={() => handleUpdateSection(section.id, { layout })}
-                                  className={`flex-1 text-[10px] font-bold py-1.5 rounded ${section.content.layout === layout ? 'bg-lumina-highlight text-white' : 'text-lumina-muted'}`}
-                              >
-                                  {layout}
-                              </button>
-                          ))}
-                      </div>
-                  </div>
+                  <div><label className="text-[10px] text-lumina-muted uppercase block mb-1 font-bold">Layout</label><div className="flex bg-lumina-surface rounded-lg p-1 border border-lumina-highlight">{['LEFT', 'RIGHT', 'CENTER'].map((layout) => (<button key={layout} onClick={() => handleUpdateSection(section.id, { layout })} className={`flex-1 text-[10px] font-bold py-1.5 rounded ${section.content.layout === layout ? 'bg-lumina-highlight text-white' : 'text-lumina-muted'}`}>{layout}</button>))}</div></div>
               )}
               {section.type === 'FEATURES' && (
-                  <div>
-                      <label className="text-[10px] text-lumina-muted uppercase block mb-1 font-bold">Features List</label>
-                      {section.content.items?.map((item, idx) => (
-                          <div key={idx} className="mb-2 pb-2 border-b border-lumina-highlight/50 last:border-0">
-                              <input 
-                                  value={item.title} 
-                                  onChange={(e) => {
-                                      const newItems = [...(section.content.items || [])];
-                                      newItems[idx].title = e.target.value;
-                                      handleUpdateSection(section.id, { items: newItems });
-                                  }}
-                                  className="w-full bg-transparent border-none p-1 text-xs text-white font-bold placeholder-gray-600 focus:ring-0"
-                                  placeholder="Title"
-                              />
-                              <input 
-                                  value={item.text} 
-                                  onChange={(e) => {
-                                      const newItems = [...(section.content.items || [])];
-                                      newItems[idx].text = e.target.value;
-                                      handleUpdateSection(section.id, { items: newItems });
-                                  }}
-                                  className="w-full bg-transparent border-none p-1 text-xs text-lumina-muted placeholder-gray-700 focus:ring-0"
-                                  placeholder="Description"
-                              />
-                          </div>
-                      ))}
-                      <button 
-                          onClick={() => handleUpdateSection(section.id, { items: [...(section.content.items || []), { title: 'New Feature', text: 'Description here.' }] })}
-                          className="w-full py-1.5 border border-dashed border-lumina-highlight rounded text-[10px] text-lumina-muted hover:text-white hover:border-lumina-accent"
-                      >
-                          + Add Feature
-                      </button>
-                  </div>
+                  <div><label className="text-[10px] text-lumina-muted uppercase block mb-1 font-bold">Features List</label>{section.content.items?.map((item, idx) => (<div key={idx} className="mb-2 pb-2 border-b border-lumina-highlight/50 last:border-0"><input value={item.title} onChange={(e) => { const newItems = [...(section.content.items || [])]; newItems[idx].title = e.target.value; handleUpdateSection(section.id, { items: newItems }); }} className="w-full bg-transparent border-none p-1 text-xs text-white font-bold placeholder-gray-600 focus:ring-0" placeholder="Title"/><input value={item.text} onChange={(e) => { const newItems = [...(section.content.items || [])]; newItems[idx].text = e.target.value; handleUpdateSection(section.id, { items: newItems }); }} className="w-full bg-transparent border-none p-1 text-xs text-lumina-muted placeholder-gray-700 focus:ring-0" placeholder="Description"/></div>))}<button onClick={() => handleUpdateSection(section.id, { items: [...(section.content.items || []), { title: 'New Feature', text: 'Description here.' }] })} className="w-full py-1.5 border border-dashed border-lumina-highlight rounded text-[10px] text-lumina-muted hover:text-white hover:border-lumina-accent">+ Add Feature</button></div>
               )}
               {section.type === 'CTA_BANNER' && (
-                  <div>
-                      <label className="text-[10px] text-lumina-muted uppercase block mb-1 font-bold">Button Text</label>
-                      <input 
-                          value={section.content.buttonText || ''}
-                          onChange={(e) => handleUpdateSection(section.id, { buttonText: e.target.value })}
-                          className="w-full bg-lumina-surface border border-lumina-highlight rounded-lg p-2 text-xs text-white focus:border-lumina-accent outline-none"
-                      />
-                  </div>
+                  <div><label className="text-[10px] text-lumina-muted uppercase block mb-1 font-bold">Button Text</label><input value={section.content.buttonText || ''} onChange={(e) => handleUpdateSection(section.id, { buttonText: e.target.value })} className="w-full bg-lumina-surface border border-lumina-highlight rounded-lg p-2 text-xs text-white focus:border-lumina-accent outline-none"/></div>
               )}
           </div>
       );
   };
 
   return (
-    <div className="h-screen w-full flex flex-col md:flex-row bg-lumina-base overflow-hidden relative">
+    <div className={`h-screen w-full flex flex-col md:flex-row bg-lumina-base overflow-hidden relative ${isFullscreen ? 'z-[100] fixed inset-0' : ''}`}>
       
-      {/* ... (Sidebar toggle & Overlay wrapper remain same) ... */}
       <AnimatePresence>
-        {!isSidebarOpen && (
+        {(!isSidebarOpen && !isFullscreen) && (
             <motion.button
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
+                initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}
                 onClick={() => setIsSidebarOpen(true)}
                 className="absolute top-4 left-4 z-50 p-3 bg-lumina-surface border border-lumina-highlight rounded-xl text-white shadow-2xl hover:bg-lumina-highlight transition-colors flex items-center gap-2"
             >
@@ -438,9 +229,9 @@ const SiteBuilderView: React.FC<ExtendedSiteBuilderViewProps> = ({ config, packa
         className="bg-lumina-surface/95 backdrop-blur-xl border-r border-lumina-highlight flex flex-col shadow-2xl z-40 overflow-hidden absolute md:relative inset-y-0 left-0"
         initial={false}
         animate={{ 
-            x: isSidebarOpen ? 0 : "-100%",
+            x: (isSidebarOpen && !isFullscreen) ? 0 : "-100%",
             width: isMobile ? "100%" : 400,
-            opacity: 1
+            opacity: (isSidebarOpen && !isFullscreen) ? 1 : 0
         }}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
       >
@@ -474,55 +265,15 @@ const SiteBuilderView: React.FC<ExtendedSiteBuilderViewProps> = ({ config, packa
                 {/* Page Selector */}
                 <div className="p-2 bg-lumina-base border-b border-lumina-highlight overflow-x-auto shrink-0">
                     <div className="flex gap-1">
-                        <button 
-                            onClick={() => { setActivePageId('home'); setActiveTab('SECTIONS'); }}
-                            className={`px-3 py-1.5 text-xs font-bold rounded-lg whitespace-nowrap transition-colors flex items-center gap-2
-                                ${activePageId === 'home' || activePageId === 'HOME' ? 'bg-lumina-highlight text-white border border-lumina-highlight' : 'text-lumina-muted hover:text-white'}
-                            `}
-                        >
-                            <Home size={12} /> Home
-                        </button>
-                        {localSite.pages?.filter(p => p.id !== 'home').map(page => (
-                            <button 
-                                key={page.id} 
-                                onClick={() => { setActivePageId(page.id); setActiveTab('SECTIONS'); }}
-                                className={`px-3 py-1.5 text-xs font-bold rounded-lg whitespace-nowrap transition-colors
-                                    ${activePageId === page.id ? 'bg-lumina-highlight text-white border border-lumina-highlight' : 'text-lumina-muted hover:text-white'}
-                                `}
-                            >
-                                {page.title}
-                            </button>
-                        ))}
-                        <button 
-                            onClick={() => setActiveTab('PAGES')}
-                            className={`px-2 py-1.5 rounded-lg text-lumina-muted hover:text-white hover:bg-lumina-highlight transition-colors`}
-                        >
-                            <Plus size={14} />
-                        </button>
+                        <button onClick={() => { setActivePageId('home'); setActiveTab('SECTIONS'); }} className={`px-3 py-1.5 text-xs font-bold rounded-lg whitespace-nowrap transition-colors flex items-center gap-2 ${activePageId === 'home' || activePageId === 'HOME' ? 'bg-lumina-highlight text-white border border-lumina-highlight' : 'text-lumina-muted hover:text-white'}`}><Home size={12} /> Home</button>
+                        {localSite.pages?.filter(p => p.id !== 'home').map(page => (<button key={page.id} onClick={() => { setActivePageId(page.id); setActiveTab('SECTIONS'); }} className={`px-3 py-1.5 text-xs font-bold rounded-lg whitespace-nowrap transition-colors ${activePageId === page.id ? 'bg-lumina-highlight text-white border border-lumina-highlight' : 'text-lumina-muted hover:text-white'}`}>{page.title}</button>))}
+                        <button onClick={() => setActiveTab('PAGES')} className={`px-2 py-1.5 rounded-lg text-lumina-muted hover:text-white hover:bg-lumina-highlight transition-colors`}><Plus size={14} /></button>
                     </div>
                 </div>
 
                 {/* Tabs */}
                 <div className="flex border-b border-lumina-highlight overflow-x-auto no-scrollbar shrink-0">
-                    {[
-                        { id: 'SECTIONS', icon: Layers, label: 'Blocks' },
-                        { id: 'CONTENT', icon: Layout, label: 'Settings' },
-                        { id: 'GALLERY', icon: ImageIcon, label: 'Gallery' },
-                        { id: 'PAGES', icon: File, label: 'Pages' }
-                    ].map((tab) => (
-                        <button 
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id as any)}
-                            className={`flex-1 py-3 flex flex-col items-center justify-center gap-1 text-[10px] font-bold uppercase tracking-wider border-b-2 transition-colors
-                                ${activeTab === tab.id 
-                                    ? 'border-lumina-accent text-lumina-accent bg-lumina-accent/5' 
-                                    : 'border-transparent text-lumina-muted hover:text-white hover:bg-lumina-highlight/30'}
-                            `}
-                        >
-                            <tab.icon size={16} />
-                            {tab.label}
-                        </button>
-                    ))}
+                    {[{ id: 'SECTIONS', icon: Layers, label: 'Blocks' }, { id: 'CONTENT', icon: Layout, label: 'Settings' }, { id: 'GALLERY', icon: ImageIcon, label: 'Gallery' }, { id: 'PAGES', icon: File, label: 'Pages' }].map((tab) => (<button key={tab.id} onClick={() => setActiveTab(tab.id as any)} className={`flex-1 py-3 flex flex-col items-center justify-center gap-1 text-[10px] font-bold uppercase tracking-wider border-b-2 transition-colors ${activeTab === tab.id ? 'border-lumina-accent text-lumina-accent bg-lumina-accent/5' : 'border-transparent text-lumina-muted hover:text-white hover:bg-lumina-highlight/30'}`}><tab.icon size={16} />{tab.label}</button>))}
                 </div>
 
                 {/* Tab Content */}
@@ -532,55 +283,20 @@ const SiteBuilderView: React.FC<ExtendedSiteBuilderViewProps> = ({ config, packa
                             <div className="space-y-3">
                                 <h3 className="text-xs font-bold text-lumina-muted uppercase tracking-widest flex items-center gap-2"><Palette size={14}/> Theme Selection</h3>
                                 <div className="grid grid-cols-3 gap-2">
-                                    {THEMES.map((theme) => (
-                                        <button
-                                            key={theme.id}
-                                            onClick={() => handleGlobalChange('theme', theme.id)}
-                                            className={`group relative aspect-square rounded-xl overflow-hidden border-2 transition-all ${localSite.theme === theme.id ? 'border-lumina-accent ring-2 ring-lumina-accent/30 scale-105 z-10' : 'border-lumina-highlight hover:border-white/50'}`}
-                                        >
-                                            <div className="absolute inset-0" style={{ backgroundColor: theme.color }}></div>
-                                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20">
-                                                {localSite.theme === theme.id && <Check size={20} className="text-white drop-shadow-md" />}
-                                            </div>
-                                        </button>
-                                    ))}
+                                    {THEMES.map((theme) => (<button key={theme.id} onClick={() => handleGlobalChange('theme', theme.id)} className={`group relative aspect-square rounded-xl overflow-hidden border-2 transition-all ${localSite.theme === theme.id ? 'border-lumina-accent ring-2 ring-lumina-accent/30 scale-105 z-10' : 'border-lumina-highlight hover:border-white/50'}`}><div className="absolute inset-0" style={{ backgroundColor: theme.color }}></div><div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20">{localSite.theme === theme.id && <Check size={20} className="text-white drop-shadow-md" />}</div></button>))}
                                 </div>
                             </div>
-
-                            {/* Typography Selection */}
                             <div className="space-y-3 border-t border-lumina-highlight pt-6">
                                 <h3 className="text-xs font-bold text-lumina-muted uppercase tracking-widest flex items-center gap-2"><Type size={14}/> Typography</h3>
                                 <div className="grid grid-cols-1 gap-2">
-                                    {FONTS.map(font => (
-                                        <button
-                                            key={font.id}
-                                            onClick={() => handleGlobalChange('font', font.id)}
-                                            className={`flex items-center justify-between p-3 rounded-xl border transition-all ${localSite.font === font.id ? 'bg-lumina-highlight border-lumina-accent text-white' : 'bg-lumina-surface border-lumina-highlight text-lumina-muted hover:border-white'}`}
-                                        >
-                                            <div className="text-left">
-                                                <span className={`block text-sm ${font.id === 'SERIF' ? 'font-serif' : font.id === 'DISPLAY' ? 'font-display' : font.id === 'MONO' ? 'font-mono' : 'font-sans'}`}>
-                                                    {font.label}
-                                                </span>
-                                                <span className="text-[10px] opacity-60">{font.desc}</span>
-                                            </div>
-                                            {localSite.font === font.id && <Check size={16} className="text-lumina-accent"/>}
-                                        </button>
-                                    ))}
+                                    {FONTS.map(font => (<button key={font.id} onClick={() => handleGlobalChange('font', font.id)} className={`flex items-center justify-between p-3 rounded-xl border transition-all ${localSite.font === font.id ? 'bg-lumina-highlight border-lumina-accent text-white' : 'bg-lumina-surface border-lumina-highlight text-lumina-muted hover:border-white'}`}><div className="text-left"><span className={`block text-sm ${font.id === 'SERIF' ? 'font-serif' : font.id === 'DISPLAY' ? 'font-display' : font.id === 'MONO' ? 'font-mono' : 'font-sans'}`}>{font.label}</span><span className="text-[10px] opacity-60">{font.desc}</span></div>{localSite.font === font.id && <Check size={16} className="text-lumina-accent"/>}</button>))}
                                 </div>
                             </div>
-
-                            {/* NEW: CUSTOM CSS */}
                             <div className="space-y-4 border-t border-lumina-highlight pt-6">
                                 <h3 className="text-xs font-bold text-lumina-muted uppercase tracking-widest flex items-center gap-2"><Code size={14}/> Custom CSS</h3>
                                 <p className="text-[10px] text-lumina-muted">Inject custom styles. Use <code>!important</code> to override.</p>
-                                <textarea 
-                                    value={localSite.customCss || ''} 
-                                    onChange={(e) => handleGlobalChange('customCss', e.target.value)}
-                                    placeholder=".bg-white { background-color: #000 !important; }"
-                                    className="w-full bg-lumina-base border border-lumina-highlight rounded-lg p-3 text-xs text-white font-mono h-32 focus:border-lumina-accent outline-none"
-                                />
+                                <textarea value={localSite.customCss || ''} onChange={(e) => handleGlobalChange('customCss', e.target.value)} placeholder=".bg-white { background-color: #000 !important; }" className="w-full bg-lumina-base border border-lumina-highlight rounded-lg p-3 text-xs text-white font-mono h-32 focus:border-lumina-accent outline-none"/>
                             </div>
-
                             <div className="space-y-4 border-t border-lumina-highlight pt-6">
                                 <h3 className="text-xs font-bold text-lumina-muted uppercase tracking-widest flex items-center gap-2"><Layout size={14}/> Global Meta</h3>
                                 <div><label className="text-[10px] font-bold text-lumina-muted uppercase mb-1 block">Site Title</label><input value={localSite.title} onChange={(e) => handleGlobalChange('title', e.target.value)} className="w-full bg-lumina-base border border-lumina-highlight rounded-lg p-2 text-sm text-white focus:border-lumina-accent outline-none"/></div>
@@ -589,20 +305,12 @@ const SiteBuilderView: React.FC<ExtendedSiteBuilderViewProps> = ({ config, packa
                         </div>
                     )}
                     {activeTab === 'SECTIONS' && (
-                        // ... sections content same ...
                         <div className="space-y-6">
                             <div className="grid grid-cols-2 gap-2">
-                                {['TEXT_IMAGE', 'FEATURES', 'GALLERY', 'PRICING', 'CTA_BANNER', 'FAQ'].map((type) => (
-                                    <button key={type} onClick={() => handleAddSection(type as SectionType)} className="flex flex-col items-center justify-center p-3 bg-lumina-base border border-lumina-highlight rounded-xl hover:border-lumina-accent hover:bg-lumina-accent/10 transition-all group">
-                                        <Plus size={16} className="text-lumina-muted group-hover:text-lumina-accent mb-1" />
-                                        <span className="text-[9px] font-bold text-white group-hover:text-lumina-accent uppercase">{type.replace('_', ' ')}</span>
-                                    </button>
-                                ))}
+                                {['TEXT_IMAGE', 'FEATURES', 'GALLERY', 'PRICING', 'CTA_BANNER', 'FAQ'].map((type) => (<button key={type} onClick={() => handleAddSection(type as SectionType)} className="flex flex-col items-center justify-center p-3 bg-lumina-base border border-lumina-highlight rounded-xl hover:border-lumina-accent hover:bg-lumina-accent/10 transition-all group"><Plus size={16} className="text-lumina-muted group-hover:text-lumina-accent mb-1" /><span className="text-[9px] font-bold text-white group-hover:text-lumina-accent uppercase">{type.replace('_', ' ')}</span></button>))}
                             </div>
                             <div className="space-y-2">
-                                {getActiveSections().length === 0 && (
-                                    <p className="text-center text-lumina-muted text-xs py-4 italic">No blocks on this page. Add one above.</p>
-                                )}
+                                {getActiveSections().length === 0 && <p className="text-center text-lumina-muted text-xs py-4 italic">No blocks on this page. Add one above.</p>}
                                 {getActiveSections().map((section, index) => (
                                     <div key={section.id} className={`border rounded-xl transition-all ${selectedSectionId === section.id ? 'border-lumina-accent bg-lumina-accent/5' : 'border-lumina-highlight bg-lumina-surface'}`}>
                                         <div className="p-3 flex items-center gap-3 cursor-pointer" onClick={() => setSelectedSectionId(selectedSectionId === section.id ? null : section.id)}>
@@ -617,45 +325,16 @@ const SiteBuilderView: React.FC<ExtendedSiteBuilderViewProps> = ({ config, packa
                         </div>
                     )}
                     {activeTab === 'GALLERY' && (
-                        // ... gallery content same ...
                         <div className="space-y-4">
                             <p className="text-xs text-lumina-muted">Global Gallery Images (Used in Gallery Blocks)</p>
-                            <div className="flex gap-2">
-                                <input value={newGalleryUrl} onChange={(e) => setNewGalleryUrl(e.target.value)} className="flex-1 bg-lumina-base border border-lumina-highlight rounded-lg p-2 text-xs text-white focus:border-lumina-accent outline-none" placeholder="Image URL..." />
-                                <button onClick={() => { if(newGalleryUrl) { handleGlobalChange('gallery', [...localSite.gallery, {id: `g-${Date.now()}`, url: newGalleryUrl, caption: ''}]); setNewGalleryUrl(''); } }} className="px-3 bg-lumina-accent text-lumina-base rounded-lg font-bold text-xs">Add</button>
-                            </div>
-                            <div className="grid grid-cols-3 gap-2">
-                                {localSite.gallery.map(img => (
-                                    <div key={img.id} className="relative aspect-square rounded-lg overflow-hidden group">
-                                        <img src={img.url} className="w-full h-full object-cover" />
-                                        <button onClick={() => handleGlobalChange('gallery', localSite.gallery.filter(g => g.id !== img.id))} className="absolute top-1 right-1 p-1 bg-black/50 text-white rounded hover:bg-rose-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={12}/></button>
-                                    </div>
-                                ))}
-                            </div>
+                            <div className="flex gap-2"><input value={newGalleryUrl} onChange={(e) => setNewGalleryUrl(e.target.value)} className="flex-1 bg-lumina-base border border-lumina-highlight rounded-lg p-2 text-xs text-white focus:border-lumina-accent outline-none" placeholder="Image URL..." /><button onClick={() => { if(newGalleryUrl) { handleGlobalChange('gallery', [...localSite.gallery, {id: `g-${Date.now()}`, url: newGalleryUrl, caption: ''}]); setNewGalleryUrl(''); } }} className="px-3 bg-lumina-accent text-lumina-base rounded-lg font-bold text-xs">Add</button></div>
+                            <div className="grid grid-cols-3 gap-2">{localSite.gallery.map(img => (<div key={img.id} className="relative aspect-square rounded-lg overflow-hidden group"><img src={img.url} className="w-full h-full object-cover" /><button onClick={() => handleGlobalChange('gallery', localSite.gallery.filter(g => g.id !== img.id))} className="absolute top-1 right-1 p-1 bg-black/50 text-white rounded hover:bg-rose-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={12}/></button></div>))}</div>
                         </div>
                     )}
                     {activeTab === 'PAGES' && (
-                        // ... pages content same ...
                         <div className="space-y-6">
-                            <div className="flex gap-2">
-                                <input value={newPageName} onChange={(e) => setNewPageName(e.target.value)} placeholder="New Page Name" className="flex-1 bg-lumina-base border border-lumina-highlight rounded-lg p-2 text-xs text-white focus:border-lumina-accent outline-none" />
-                                <button onClick={handleAddPage} disabled={!newPageName} className="px-3 bg-lumina-accent text-lumina-base rounded-lg font-bold text-xs">Add</button>
-                            </div>
-                            <div className="space-y-2">
-                                {localSite.pages?.map(page => (
-                                    <div key={page.id} className="flex items-center justify-between p-3 bg-lumina-base border border-lumina-highlight rounded-xl group">
-                                        <div>
-                                            <p className="text-xs font-bold text-white">{page.title}</p>
-                                            <p className="text-[10px] text-lumina-muted font-mono">{page.id === 'home' ? '/' : `/${page.slug}`}</p>
-                                        </div>
-                                        <div className="flex gap-2">
-                                            {page.id !== 'home' && (
-                                                <button onClick={() => handleDeletePage(page.id)} className="p-1.5 hover:text-rose-500 text-lumina-muted"><Trash2 size={14}/></button>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
+                            <div className="flex gap-2"><input value={newPageName} onChange={(e) => setNewPageName(e.target.value)} placeholder="New Page Name" className="flex-1 bg-lumina-base border border-lumina-highlight rounded-lg p-2 text-xs text-white focus:border-lumina-accent outline-none" /><button onClick={handleAddPage} disabled={!newPageName} className="px-3 bg-lumina-accent text-lumina-base rounded-lg font-bold text-xs">Add</button></div>
+                            <div className="space-y-2">{localSite.pages?.map(page => (<div key={page.id} className="flex items-center justify-between p-3 bg-lumina-base border border-lumina-highlight rounded-xl group"><div><p className="text-xs font-bold text-white">{page.title}</p><p className="text-[10px] text-lumina-muted font-mono">{page.id === 'home' ? '/' : `/${page.slug}`}</p></div><div className="flex gap-2">{page.id !== 'home' && (<button onClick={() => handleDeletePage(page.id)} className="p-1.5 hover:text-rose-500 text-lumina-muted"><Trash2 size={14}/></button>)}</div></div>))}</div>
                         </div>
                     )}
                 </div>
@@ -664,11 +343,22 @@ const SiteBuilderView: React.FC<ExtendedSiteBuilderViewProps> = ({ config, packa
 
       {/* --- PREVIEW AREA --- */}
       <div className="flex-1 flex flex-col h-full bg-[#111] relative overflow-hidden">
-          <div className="h-14 border-b border-lumina-highlight flex justify-center items-center gap-4 bg-lumina-base z-10 shrink-0">
-              <button onClick={() => setPreviewMode('DESKTOP')} className={`p-2 rounded-lg transition-colors ${previewMode === 'DESKTOP' ? 'text-white bg-lumina-highlight' : 'text-lumina-muted hover:text-white'}`}><Monitor size={18} /></button>
-              <button onClick={() => setPreviewMode('MOBILE')} className={`p-2 rounded-lg transition-colors ${previewMode === 'MOBILE' ? 'text-white bg-lumina-highlight' : 'text-lumina-muted hover:text-white'}`}><Smartphone size={18} /></button>
-              <div className="w-px h-6 bg-lumina-highlight mx-2"></div>
-              <a href={publicUrl} target="_blank" className="flex items-center gap-2 text-xs font-bold text-lumina-accent hover:underline bg-lumina-accent/10 px-3 py-1 rounded-full border border-lumina-accent/20"><Globe size={12} /> Live</a>
+          <div className="h-14 border-b border-lumina-highlight flex justify-between items-center bg-lumina-base z-10 shrink-0 px-4">
+              <div className="flex gap-2 items-center">
+                  <button onClick={() => setPreviewMode('DESKTOP')} className={`p-2 rounded-lg transition-colors ${previewMode === 'DESKTOP' ? 'text-white bg-lumina-highlight' : 'text-lumina-muted hover:text-white'}`}><Monitor size={18} /></button>
+                  <button onClick={() => setPreviewMode('MOBILE')} className={`p-2 rounded-lg transition-colors ${previewMode === 'MOBILE' ? 'text-white bg-lumina-highlight' : 'text-lumina-muted hover:text-white'}`}><Smartphone size={18} /></button>
+                  <div className="w-px h-6 bg-lumina-highlight mx-2"></div>
+                  <a href={publicUrl} target="_blank" className="flex items-center gap-2 text-xs font-bold text-lumina-accent hover:underline bg-lumina-accent/10 px-3 py-1 rounded-full border border-lumina-accent/20"><Globe size={12} /> Live</a>
+              </div>
+              
+              {/* FULLSCREEN TOGGLE */}
+              <button 
+                  onClick={() => setIsFullscreen(!isFullscreen)} 
+                  className={`p-2 rounded-lg transition-colors ${isFullscreen ? 'text-lumina-accent bg-lumina-highlight' : 'text-lumina-muted hover:text-white'}`}
+                  title="Toggle Fullscreen"
+              >
+                  {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+              </button>
           </div>
 
           <div className="flex-1 overflow-auto flex items-center justify-center bg-neutral-900 p-4 md:p-8 relative custom-scrollbar">

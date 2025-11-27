@@ -1,13 +1,13 @@
 
-
+// ... existing imports ...
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Asset, AssetCategory, AssetStatus, InventoryViewProps } from '../types';
-import { Box, Wrench, CheckCircle2, AlertTriangle, Search, Plus, X, MoreVertical, Trash, Calendar, User as UserIcon, LogOut, LogIn, FileText } from 'lucide-react';
+import { Box, Wrench, CheckCircle2, AlertTriangle, Search, Plus, X, MoreVertical, Trash, Calendar, User as UserIcon, LogOut, LogIn, FileText, QrCode, Scan } from 'lucide-react';
 
 const Motion = motion as any;
 
-const InventoryView: React.FC<InventoryViewProps> = ({ assets, users, onAddAsset, onUpdateAsset, onDeleteAsset, config }) => {
+const InventoryView: React.FC<InventoryViewProps> = ({ assets, users, onAddAsset, onUpdateAsset, onDeleteAsset, config, showToast }) => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
@@ -17,11 +17,14 @@ const InventoryView: React.FC<InventoryViewProps> = ({ assets, users, onAddAsset
   const [actionType, setActionType] = useState<'CHECK_OUT' | 'MAINTENANCE' | null>(null);
   const [actionForm, setActionForm] = useState({ userId: '', returnDate: '', notes: '' });
 
+  // QR Scanner State
+  const [isScanning, setIsScanning] = useState(false);
+
   // Use categories from config
   const configCategories = config.assetCategories || ['CAMERA', 'LENS', 'LIGHTING', 'PROP', 'BACKGROUND'];
   const [newAsset, setNewAsset] = useState<Partial<Asset>>({
       status: 'AVAILABLE',
-      category: configCategories[0], // Default to first available category
+      category: configCategories[0], 
       serialNumber: '' 
   });
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
@@ -31,7 +34,7 @@ const InventoryView: React.FC<InventoryViewProps> = ({ assets, users, onAddAsset
       ...configCategories.map(c => ({ id: c, label: c }))
   ];
 
-  const handleSave = () => {
+  const handleSave = () => { /* ... existing logic ... */ 
       if (onAddAsset && newAsset.name) {
           onAddAsset({
               id: `a-${Date.now()}`,
@@ -45,20 +48,18 @@ const InventoryView: React.FC<InventoryViewProps> = ({ assets, users, onAddAsset
       }
   };
 
-  const openActionModal = (asset: Asset, type: 'CHECK_OUT' | 'MAINTENANCE') => {
+  const openActionModal = (asset: Asset, type: 'CHECK_OUT' | 'MAINTENANCE') => { /* ... existing logic ... */ 
       setActionAsset(asset);
       setActionType(type);
       setActiveMenu(null);
-      // Reset form
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
       setActionForm({ userId: users[0]?.id || '', returnDate: tomorrow.toISOString().split('T')[0], notes: '' });
   };
 
-  const handleActionSubmit = () => {
+  const handleActionSubmit = () => { /* ... existing logic ... */ 
       if (onUpdateAsset && actionAsset) {
           let updatedAsset = { ...actionAsset };
-          
           if (actionType === 'CHECK_OUT') {
               updatedAsset.status = 'IN_USE';
               updatedAsset.assignedToUserId = actionForm.userId;
@@ -67,14 +68,13 @@ const InventoryView: React.FC<InventoryViewProps> = ({ assets, users, onAddAsset
               updatedAsset.status = 'MAINTENANCE'; 
               updatedAsset.notes = actionForm.notes;
           }
-
           onUpdateAsset(updatedAsset);
           setActionAsset(null);
           setActionType(null);
       }
   };
 
-  const handleReturn = (asset: Asset) => {
+  const handleReturn = (asset: Asset) => { /* ... existing logic ... */ 
        if (onUpdateAsset) {
            onUpdateAsset({
                ...asset,
@@ -87,31 +87,36 @@ const InventoryView: React.FC<InventoryViewProps> = ({ assets, users, onAddAsset
        }
   };
 
-  const handleDelete = (e: React.MouseEvent, asset: Asset) => {
+  const handleDelete = (e: React.MouseEvent, asset: Asset) => { /* ... existing logic ... */ 
       e.preventDefault();
       e.stopPropagation();
-      
-      if (!window.confirm(`Permanently delete '${asset.name}'?`)) {
-          setActiveMenu(null);
-          return;
-      }
-
+      if (!window.confirm(`Permanently delete '${asset.name}'?`)) { setActiveMenu(null); return; }
       try {
           if (asset && asset.status === 'IN_USE') {
-              alert(`Cannot delete '${asset.name}' because it is marked as IN USE.\n\nPlease return the item first.`);
+              alert(`Cannot delete '${asset.name}' because it is marked as IN USE.`);
               setActiveMenu(null);
               return;
           }
+          if (onDeleteAsset) onDeleteAsset(asset.id);
+          setActiveMenu(null);
+      } catch (err: any) { console.error("Asset Delete Error:", err); alert("System error. Deletion prevented."); setActiveMenu(null); }
+  };
 
-          if (onDeleteAsset) {
-              onDeleteAsset(asset.id);
+  // QR Scan Simulation
+  const handleScanQR = () => {
+      setIsScanning(true);
+      // Simulate detection after 2 seconds
+      setTimeout(() => {
+          setIsScanning(false);
+          // Pick a random asset to simulate finding
+          const randomAsset = assets[Math.floor(Math.random() * assets.length)];
+          if (randomAsset) {
+              setSearchTerm(randomAsset.name); // Filter view to this asset
+              if(showToast) showToast(`Found: ${randomAsset.name}`, 'SUCCESS');
+          } else {
+              if(showToast) showToast('No asset found.', 'ERROR');
           }
-          setActiveMenu(null);
-      } catch (err: any) {
-          console.error("Asset Delete Error:", err);
-          alert("System error. Deletion prevented.");
-          setActiveMenu(null);
-      }
+      }, 2000);
   };
 
   const filteredAssets = assets.filter(a => {
@@ -120,7 +125,7 @@ const InventoryView: React.FC<InventoryViewProps> = ({ assets, users, onAddAsset
       return matchesCategory && matchesSearch;
   });
 
-  const getStatusColor = (status: Asset['status']) => {
+  const getStatusColor = (status: Asset['status']) => { /* ... existing ... */ 
     const s = status || 'AVAILABLE';
     switch (s) {
       case 'AVAILABLE': return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
@@ -131,7 +136,7 @@ const InventoryView: React.FC<InventoryViewProps> = ({ assets, users, onAddAsset
     }
   };
 
-  const getStatusIcon = (status: Asset['status']) => {
+  const getStatusIcon = (status: Asset['status']) => { /* ... existing ... */ 
     const s = status || 'AVAILABLE';
     switch (s) {
       case 'AVAILABLE': return CheckCircle2;
@@ -142,10 +147,7 @@ const InventoryView: React.FC<InventoryViewProps> = ({ assets, users, onAddAsset
     }
   };
 
-  const getUserName = (id?: string) => {
-    if (!id) return null;
-    return users.find(u => u.id === id)?.name;
-  };
+  const getUserName = (id?: string) => { return id ? users.find(u => u.id === id)?.name : null; };
 
   return (
     <div className="space-y-8 h-full flex flex-col" onClick={() => setActiveMenu(null)}>
@@ -162,15 +164,22 @@ const InventoryView: React.FC<InventoryViewProps> = ({ assets, users, onAddAsset
                     placeholder="Search serial or name..." 
                     value={searchTerm}
                     onChange={e => setSearchTerm(e.target.value)}
-                    className="bg-lumina-surface border border-lumina-highlight rounded-xl pl-10 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-lumina-accent w-64 transition-all"
+                    className="bg-lumina-surface border border-lumina-highlight rounded-xl pl-10 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-lumina-accent w-full md:w-64 transition-all font-sans"
                 />
             </div>
+            <button 
+                onClick={handleScanQR}
+                className="bg-lumina-base border border-lumina-highlight text-white p-2.5 rounded-xl hover:bg-lumina-highlight transition-colors"
+                title="Scan QR Code"
+            >
+                <QrCode size={18} />
+            </button>
             <button 
                 type="button"
                 onClick={() => setIsAddModalOpen(true)}
                 className="bg-lumina-accent text-lumina-base px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-lumina-accent/90 transition-colors shadow-lg shadow-lumina-accent/10"
             >
-                <Plus size={18} /> Add Item
+                <Plus size={18} /> <span className="hidden md:inline">Add Item</span>
             </button>
         </div>
       </div>
@@ -252,7 +261,7 @@ const InventoryView: React.FC<InventoryViewProps> = ({ assets, users, onAddAsset
                         {asset.category}
                     </span>
                     <h3 className="text-white font-bold text-lg mb-1 group-hover:text-lumina-accent transition-colors">{asset.name}</h3>
-                    <p className="text-xs text-lumina-muted font-mono">SN: {asset.serialNumber || 'N/A'}</p>
+                    <p className="text-xs text-lumina-muted font-mono font-sans">SN: {asset.serialNumber || 'N/A'}</p>
                 </div>
 
                 <div className="border-t border-lumina-highlight pt-3 mt-4 flex justify-between items-end">
@@ -305,6 +314,7 @@ const InventoryView: React.FC<InventoryViewProps> = ({ assets, users, onAddAsset
                                 value={newAsset.name || ''} onChange={e => setNewAsset({...newAsset, name: e.target.value})}
                              />
                          </div>
+                         {/* ... existing fields ... */}
                          <div className="grid grid-cols-2 gap-4">
                              <div>
                                 <label className="text-xs uppercase text-lumina-muted font-bold block mb-1">Category</label>
@@ -339,7 +349,24 @@ const InventoryView: React.FC<InventoryViewProps> = ({ assets, users, onAddAsset
           )}
       </AnimatePresence>
 
-      {/* Action Modal (Check Out / Maintenance) */}
+      {/* Scan Overlay */}
+      <AnimatePresence>
+          {isScanning && (
+              <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black">
+                  <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-64 h-64 border-2 border-lumina-accent rounded-xl relative overflow-hidden">
+                          <div className="absolute top-0 left-0 w-full h-1 bg-lumina-accent animate-scan-y shadow-[0_0_10px_#bef264]"></div>
+                      </div>
+                  </div>
+                  <div className="absolute bottom-10 flex flex-col items-center">
+                      <p className="text-white font-bold mb-4 animate-pulse">Scanning...</p>
+                      <button onClick={() => setIsScanning(false)} className="bg-white text-black px-6 py-2 rounded-full font-bold">Cancel</button>
+                  </div>
+              </div>
+          )}
+      </AnimatePresence>
+
+      {/* Action Modal (Keep existing) */}
       <AnimatePresence>
           {actionAsset && (
              <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
