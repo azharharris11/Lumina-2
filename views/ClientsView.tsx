@@ -1,9 +1,8 @@
 
-
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Client, Booking, ClientsViewProps } from '../types';
-import { Search, Filter, Phone, Mail, Clock, ShieldAlert, Star, History, MessageSquare, Edit2, Save, X, Plus, Trash2, ArrowLeft } from 'lucide-react';
+import { Search, Filter, Phone, Mail, Clock, ShieldAlert, Star, History, MessageSquare, Edit2, Save, X, Plus, Trash2, ArrowLeft, AlertTriangle } from 'lucide-react';
 import WhatsAppModal from '../components/WhatsAppModal';
 import { STUDIO_CONFIG } from '../data';
 
@@ -14,6 +13,9 @@ const ClientsView: React.FC<ClientsViewProps> = ({ clients, bookings, onUpdateCl
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Client>>({});
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // Custom Confirmation Modal State
+  const [deleteTarget, setDeleteTarget] = useState<Client | null>(null);
   
   // Use categories from config
   const clientCategories = config.clientCategories || ['NEW', 'REGULAR', 'VIP', 'PROBLEMATIC'];
@@ -83,34 +85,34 @@ const ClientsView: React.FC<ClientsViewProps> = ({ clients, bookings, onUpdateCl
       }
   };
 
-  const handleDelete = (e: React.MouseEvent) => {
+  const initiateDelete = (e: React.MouseEvent) => {
       e.stopPropagation();
       e.preventDefault();
-      
       if (!selectedClient) return;
+      setDeleteTarget(selectedClient);
+  }
 
-      if (!window.confirm(`Are you sure you want to permanently delete client '${selectedClient.name}'?`)) {
-          return;
-      }
+  const confirmDelete = () => {
+      if (!deleteTarget) return;
 
       try {
           const validBookings = bookings || [];
-          const associatedBookings = validBookings.filter(b => b && b.clientId === selectedClient.id);
+          const associatedBookings = validBookings.filter(b => b && b.clientId === deleteTarget.id);
           
           if (associatedBookings.length > 0) {
-              alert(`Blocked: Client '${selectedClient.name}' has ${associatedBookings.length} recorded bookings.\n\nDeleting this client would corrupt your financial history. Please delete their bookings first.`);
+              alert(`Blocked: Client '${deleteTarget.name}' has ${associatedBookings.length} recorded bookings.\n\nDeleting this client would corrupt your financial history. Please delete their bookings first.`);
+              setDeleteTarget(null);
               return;
           }
 
           if (onDeleteClient) {
-              onDeleteClient(selectedClient.id);
+              onDeleteClient(deleteTarget.id);
               setSelectedClient(null);
-          } else {
-              alert("Delete function not available.");
+              setDeleteTarget(null);
           }
       } catch (err: any) {
           console.error("Delete Client Error:", err);
-          alert("System error checking client history. Aborting.");
+          setDeleteTarget(null);
       }
   };
 
@@ -213,7 +215,6 @@ const ClientsView: React.FC<ClientsViewProps> = ({ clients, bookings, onUpdateCl
         </div>
 
         {/* Client Detail Panel */}
-        {/* On mobile, this takes full width and hides list. On desktop, it's side-by-side */}
         <div className={`lg:w-[400px] bg-lumina-surface border border-lumina-highlight rounded-2xl overflow-hidden flex flex-col absolute inset-0 lg:static z-10 ${selectedClient ? 'flex' : 'hidden lg:flex'}`}>
             {selectedClient ? (
                 <Motion.div 
@@ -242,7 +243,7 @@ const ClientsView: React.FC<ClientsViewProps> = ({ clients, bookings, onUpdateCl
                             <div className="absolute top-4 right-4 flex gap-2">
                                 <button 
                                     type="button" 
-                                    onClick={handleDelete} 
+                                    onClick={initiateDelete} 
                                     className="p-2 bg-rose-500/10 border border-rose-500/30 rounded hover:bg-rose-500 hover:text-white text-rose-500 transition-colors z-20 cursor-pointer" 
                                     title="Delete Client"
                                 >
@@ -402,6 +403,31 @@ const ClientsView: React.FC<ClientsViewProps> = ({ clients, bookings, onUpdateCl
                               <textarea className="w-full bg-lumina-base border border-lumina-highlight rounded-lg p-2 text-white h-20" value={newClient.notes} onChange={e => setNewClient({...newClient, notes: e.target.value})} />
                           </div>
                           <button onClick={handleAdd} className="w-full py-3 bg-lumina-accent text-lumina-base font-bold rounded-xl mt-4 hover:bg-lumina-accent/90">Create Client Profile</button>
+                      </div>
+                  </Motion.div>
+              </div>
+          )}
+      </AnimatePresence>
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+          {deleteTarget && (
+              <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+                  <Motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} onClick={() => setDeleteTarget(null)} className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
+                  <Motion.div initial={{scale:0.95, opacity:0}} animate={{scale:1, opacity:1}} exit={{scale:0.95, opacity:0}} className="relative bg-lumina-surface border border-rose-500/30 w-full max-w-sm rounded-2xl p-6 shadow-2xl">
+                      <div className="text-center mb-6">
+                          <div className="w-12 h-12 bg-rose-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-rose-500/20">
+                              <AlertTriangle className="text-rose-500 w-6 h-6" />
+                          </div>
+                          <h3 className="text-xl font-bold text-white mb-2">Delete Client?</h3>
+                          <p className="text-sm text-lumina-muted">
+                              Are you sure you want to remove <span className="text-white font-bold">{deleteTarget.name}</span>?
+                              <br/>This action cannot be undone.
+                          </p>
+                      </div>
+                      <div className="flex gap-3">
+                          <button onClick={() => setDeleteTarget(null)} className="flex-1 py-3 bg-lumina-base border border-lumina-highlight rounded-xl font-bold text-lumina-muted hover:text-white transition-colors">Cancel</button>
+                          <button onClick={confirmDelete} className="flex-1 py-3 bg-rose-500 hover:bg-rose-600 text-white rounded-xl font-bold transition-colors shadow-lg shadow-rose-500/20">Delete</button>
                       </div>
                   </Motion.div>
               </div>

@@ -132,7 +132,6 @@ const ProjectDrawer: React.FC<ProjectDrawerProps> = ({ isOpen, onClose, booking,
   }, [booking, isOpen]);
 
   // ... (Drive Functions & Logistics Handlers - Keeping existing logic) ...
-  // [Omitted for brevity, logic remains same as previous good version]
   const fetchDriveFolders = async (parentId: string) => { /* ... */ };
   const fetchProofingFiles = async () => { /* ... */ };
   const handleUploadToDrive = async (e: React.ChangeEvent<HTMLInputElement>) => { /* ... */ };
@@ -150,15 +149,12 @@ const ProjectDrawer: React.FC<ProjectDrawerProps> = ({ isOpen, onClose, booking,
   const handleCopyPortalLink = () => { const link = `${window.location.origin}/?site=${config?.ownerId || ''}&booking=${booking?.id}`; navigator.clipboard.writeText(link); alert("Link Copied!"); };
   const handleToggleImageSelection = (fileId: string) => { /* ... */ };
 
-  // --- SIGNATURE LOGIC FIXED FOR MOBILE ---
+  // --- SIGNATURE LOGIC ---
   const getCoordinates = (e: MouseEvent | TouchEvent, canvas: HTMLCanvasElement) => {
       const rect = canvas.getBoundingClientRect();
       const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
       const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-      return {
-          x: clientX - rect.left,
-          y: clientY - rect.top
-      };
+      return { x: clientX - rect.left, y: clientY - rect.top };
   };
 
   const startDrawing = (e: any) => {
@@ -166,10 +162,8 @@ const ProjectDrawer: React.FC<ProjectDrawerProps> = ({ isOpen, onClose, booking,
       if (!canvas) return;
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
-      
-      e.preventDefault(); // Prevent scrolling on touch
+      e.preventDefault();
       const coords = getCoordinates(e.nativeEvent ? e.nativeEvent : e, canvas);
-      
       ctx.beginPath();
       ctx.moveTo(coords.x, coords.y);
       setIsSigning(true);
@@ -181,10 +175,8 @@ const ProjectDrawer: React.FC<ProjectDrawerProps> = ({ isOpen, onClose, booking,
       if (!canvas) return;
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
-
       e.preventDefault();
       const coords = getCoordinates(e.nativeEvent ? e.nativeEvent : e, canvas);
-      
       ctx.lineTo(coords.x, coords.y);
       ctx.stroke();
   };
@@ -214,8 +206,109 @@ const ProjectDrawer: React.FC<ProjectDrawerProps> = ({ isOpen, onClose, booking,
       }
   };
 
-  // ... (generateContractPDF remains same) ...
-  const generateContractPDF = () => { /* ... */ };
+  // --- CONTRACT PDF GENERATION (IMPLEMENTED) ---
+  const generateContractPDF = () => {
+      if (!booking || !config) return;
+
+      const doc = new jsPDF();
+      const margin = 20;
+      let yPos = 30;
+
+      // Header
+      doc.setFontSize(22);
+      doc.setFont("helvetica", "bold");
+      doc.text("SERVICE AGREEMENT", margin, yPos);
+      
+      yPos += 15;
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Agreement Date: ${new Date().toLocaleDateString()}`, margin, yPos);
+      doc.text(`Booking Ref: #${booking.id.substring(booking.id.length-6).toUpperCase()}`, 140, yPos);
+
+      yPos += 20;
+      // Parties
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      doc.text("BETWEEN:", margin, yPos);
+      yPos += 8;
+      doc.setFont("helvetica", "normal");
+      doc.text(`${config.name}`, margin, yPos);
+      doc.text(`${config.address}`, margin, yPos + 5);
+      doc.text(`(The "Studio")`, margin, yPos + 10);
+
+      yPos += 25;
+      doc.setFont("helvetica", "bold");
+      doc.text("AND:", margin, yPos);
+      yPos += 8;
+      doc.setFont("helvetica", "normal");
+      doc.text(`${booking.clientName}`, margin, yPos);
+      doc.text(`${booking.clientPhone}`, margin, yPos + 5);
+      doc.text(`(The "Client")`, margin, yPos + 10);
+
+      yPos += 25;
+      // Scope
+      doc.setFont("helvetica", "bold");
+      doc.text("1. SCOPE OF SERVICES", margin, yPos);
+      yPos += 8;
+      doc.setFont("helvetica", "normal");
+      const scopeText = `The Studio agrees to provide photography services for the "${booking.package}" package on ${booking.date} at ${booking.timeStart} for a duration of ${booking.duration} hours at ${booking.studio}.`;
+      const splitScope = doc.splitTextToSize(scopeText, 170);
+      doc.text(splitScope, margin, yPos);
+      yPos += splitScope.length * 5 + 10;
+
+      // Fees
+      doc.setFont("helvetica", "bold");
+      doc.text("2. FEES AND PAYMENT", margin, yPos);
+      yPos += 8;
+      doc.setFont("helvetica", "normal");
+      doc.text(`Total Fee: Rp ${booking.price.toLocaleString()}`, margin, yPos);
+      doc.text(`Paid to Date: Rp ${booking.paidAmount.toLocaleString()}`, margin, yPos + 5);
+      yPos += 20;
+
+      // Terms (Simplified)
+      doc.setFont("helvetica", "bold");
+      doc.text("3. TERMS AND CONDITIONS", margin, yPos);
+      yPos += 8;
+      doc.setFont("helvetica", "normal");
+      const terms = [
+          "a. The Client shall pay the balance due before the delivery of final images.",
+          "b. The Studio retains copyright of all images. The Client receives personal use rights.",
+          "c. Cancellation within 24 hours of the shoot is non-refundable.",
+          "d. The Studio is not liable for compromised coverage due to interference or restrictions."
+      ];
+      terms.forEach(term => {
+          const splitTerm = doc.splitTextToSize(term, 170);
+          doc.text(splitTerm, margin, yPos);
+          yPos += splitTerm.length * 5 + 2;
+      });
+
+      yPos += 20;
+      
+      // Signatures
+      doc.line(margin, yPos, 190, yPos); // Separator
+      yPos += 10;
+      
+      doc.text("Signed by Client:", margin, yPos);
+      doc.text("Signed by Studio:", 120, yPos);
+      
+      yPos += 10;
+      
+      // Add Client Signature Image
+      if (booking.contractSignature) {
+          doc.addImage(booking.contractSignature, 'PNG', margin, yPos, 50, 20);
+          doc.text(`Date: ${booking.contractSignedDate ? new Date(booking.contractSignedDate).toLocaleDateString() : 'N/A'}`, margin, yPos + 25);
+      } else {
+          doc.text("[Pending Signature]", margin, yPos + 10);
+      }
+
+      // Studio Signature Stamp (Text for now)
+      doc.setFont("helvetica", "bold");
+      doc.text(config.name.toUpperCase(), 120, yPos + 10);
+      doc.setFont("helvetica", "normal");
+      doc.text("Authorized Representative", 120, yPos + 25);
+
+      doc.save(`Contract_${booking.clientName.replace(/\s+/g, '_')}.pdf`);
+  };
 
   if (!isOpen || !booking) return null;
 
@@ -232,7 +325,6 @@ const ProjectDrawer: React.FC<ProjectDrawerProps> = ({ isOpen, onClose, booking,
         {/* ... (Header and Tabs code remains same) ... */}
         {/* HEADER */}
         <div className="p-4 lg:p-6 border-b border-lumina-highlight bg-lumina-base flex justify-between items-center shrink-0">
-            {/* ... Header Content ... */}
             <div className="flex items-center gap-4">
                 <button onClick={onClose} className="lg:hidden p-2 -ml-2 text-lumina-muted"><ArrowLeft size={20} /></button>
                 <div>

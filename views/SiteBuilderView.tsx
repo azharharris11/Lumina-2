@@ -27,6 +27,7 @@ interface ExtendedSiteBuilderViewProps extends SiteBuilderViewProps {
     showToast?: (msg: string, type: any) => void;
 }
 
+// ... THEMES & FONTS constants remain same ...
 const THEMES: {id: SiteTheme, label: string, color: string, textColor: string}[] = [
     { id: 'NOIR', label: 'Noir', color: '#000000', textColor: '#ffffff' },
     { id: 'ETHEREAL', label: 'Ethereal', color: '#fcfaf7', textColor: '#4a4a4a' },
@@ -49,8 +50,21 @@ const FONTS: {id: SiteFont, label: string, desc: string}[] = [
     { id: 'MONO', label: 'Technical Mono', desc: 'Raw, brutalist (Monospace)' }
 ];
 
+// Custom Hook for Debounce
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+  useEffect(() => {
+    const handler = setTimeout(() => { setDebouncedValue(value); }, delay);
+    return () => { clearTimeout(handler); };
+  }, [value, delay]);
+  return debouncedValue;
+}
+
 const SiteBuilderView: React.FC<ExtendedSiteBuilderViewProps> = ({ config, packages, users, bookings, onUpdateConfig, onExit, onPublicBooking, showToast }) => {
   const [localSite, setLocalSite] = useState(config.site);
+  // DEBOUNCED SITE STATE FOR PREVIEW
+  const debouncedSite = useDebounce(localSite, 500);
+
   const [previewMode, setPreviewMode] = useState<'DESKTOP' | 'MOBILE'>('DESKTOP');
   const [activeTab, setActiveTab] = useState<'CONTENT' | 'SECTIONS' | 'GALLERY' | 'COMPONENTS' | 'SEO' | 'MARKETING' | 'PAGES'>('SECTIONS');
   const [hasChanges, setHasChanges] = useState(false);
@@ -59,12 +73,10 @@ const SiteBuilderView: React.FC<ExtendedSiteBuilderViewProps> = ({ config, packa
   const [newPageName, setNewPageName] = useState('');
   const [newGalleryUrl, setNewGalleryUrl] = useState('');
   
-  // Sidebar & Layout State
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-  const [isFullscreen, setIsFullscreen] = useState(false); // NEW
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // ... (Responsive listener & Auto Migration & publicUrl & activePageData calculation remain same) ...
   useEffect(() => {
     const handleResize = () => {
         const mobile = window.innerWidth < 768;
@@ -76,11 +88,10 @@ const SiteBuilderView: React.FC<ExtendedSiteBuilderViewProps> = ({ config, packa
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // --- AUTO MIGRATION: Convert Legacy Home to Sections ---
+  // --- AUTO MIGRATION ---
   useEffect(() => {
       const homePage = localSite.pages?.find(p => p.id === 'home' || p.slug === 'home');
       if (!homePage) {
-          // ... (Migration logic same as before) ...
           const newSections: SiteSection[] = [];
           newSections.push({ id: 'home-hero', type: 'HERO', content: { headline: localSite.headline, description: localSite.description, image: localSite.heroImage, subheadline: 'Welcome' } });
           if (localSite.showPortfolio && localSite.gallery.length > 0) { newSections.push({ id: 'home-gallery', type: 'GALLERY', content: {} }); }
@@ -96,20 +107,26 @@ const SiteBuilderView: React.FC<ExtendedSiteBuilderViewProps> = ({ config, packa
 
   const publicUrl = `${window.location.origin}?site=${config.ownerId || 'me'}`;
 
-  const activePageData = useMemo(() => {
+  // Use LOCAL site for Editor Panel, but DEBOUNCED site for Preview Panel
+  const activePageDataEditor = useMemo(() => {
       if (activePageId === 'HOME') { return localSite.pages?.find(p => p.id === 'home') || localSite; }
       return localSite.pages?.find(p => p.id === activePageId) || localSite;
   }, [activePageId, localSite]);
+
+  const activePageDataPreview = useMemo(() => {
+      if (activePageId === 'HOME') { return debouncedSite.pages?.find(p => p.id === 'home') || debouncedSite; }
+      return debouncedSite.pages?.find(p => p.id === activePageId) || debouncedSite;
+  }, [activePageId, debouncedSite]);
 
   const handleContentChange = (key: string, value: any) => {
       setHasChanges(true);
       setLocalSite(prev => ({ ...prev, pages: prev.pages?.map(p => (p.id === activePageId || (activePageId==='HOME' && p.id==='home')) ? { ...p, [key]: value } : p) || [] }));
   };
 
-  const getActiveSections = () => { return (activePageData as SitePage).sections || []; };
+  const getActiveSections = () => { return (activePageDataEditor as SitePage).sections || []; };
   const updateSections = (newSections: SiteSection[]) => { handleContentChange('sections', newSections); };
 
-  // ... (Section handlers remain same) ...
+  // ... (Section Handlers remain same) ...
   const handleAddSection = (type: SectionType) => {
       const newSection: SiteSection = { id: `sec-${Date.now()}`, type, content: { headline: 'New Section', description: 'Add your content here.', image: 'https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?auto=format&fit=crop&w=800&q=80', layout: 'LEFT', items: type === 'FEATURES' ? [{title: 'Feature 1', text: 'Detail'}] : undefined } };
       updateSections([...getActiveSections(), newSection]);
@@ -123,7 +140,7 @@ const SiteBuilderView: React.FC<ExtendedSiteBuilderViewProps> = ({ config, packa
   };
 
   const handleDeleteSection = (id: string) => { if(window.confirm('Delete this section?')) { updateSections(getActiveSections().filter(s => s.id !== id)); if (selectedSectionId === id) setSelectedSectionId(null); } };
-  const handleMoveSection = (index: number, direction: 'UP' | 'DOWN') => { /* ... existing logic ... */ 
+  const handleMoveSection = (index: number, direction: 'UP' | 'DOWN') => { 
       const sections = [...getActiveSections()];
       if (direction === 'UP' && index > 0) { [sections[index], sections[index - 1]] = [sections[index - 1], sections[index]]; } 
       else if (direction === 'DOWN' && index < sections.length - 1) { [sections[index], sections[index + 1]] = [sections[index + 1], sections[index]]; }
@@ -131,7 +148,7 @@ const SiteBuilderView: React.FC<ExtendedSiteBuilderViewProps> = ({ config, packa
   };
 
   const handleGlobalChange = (key: string, value: any) => { setLocalSite(prev => ({ ...prev, [key]: value })); setHasChanges(true); };
-  const handleAddPage = () => { /* ... existing logic ... */ 
+  const handleAddPage = () => { 
       if (newPageName.trim()) {
           const slug = newPageName.toLowerCase().replace(/\s+/g, '-');
           const newPage: SitePage = { id: `p-${Date.now()}`, title: newPageName, slug: slug, headline: newPageName, description: 'Add your page description here.', heroImage: 'https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&w=800&q=80', showPortfolio: true, showPricing: false, showBookingWidget: true, gallery: [], sections: [ { id: `hero-${Date.now()}`, type: 'HERO', content: { headline: newPageName, description: 'Welcome to this page', image: 'https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&w=800&q=80' } } ] };
@@ -141,24 +158,23 @@ const SiteBuilderView: React.FC<ExtendedSiteBuilderViewProps> = ({ config, packa
           setActivePageId(newPage.id);
       }
   };
-  const handleDeletePage = (id: string) => { /* ... existing logic ... */ 
+  const handleDeletePage = (id: string) => { 
       if (id === 'home') { alert("Cannot delete Home page."); return; }
       if (window.confirm('Are you sure? This page will be deleted.')) { setLocalSite(prev => ({ ...prev, pages: prev.pages?.filter(p => p.id !== id) || [] })); if (activePageId === id) setActivePageId('home'); setHasChanges(true); }
   };
 
   const handleSave = () => { onUpdateConfig({ ...config, site: localSite }); setHasChanges(false); if(showToast) showToast('Changes saved', 'SUCCESS'); };
 
-  // Render Theme Logic
+  // Render Theme Logic (USING DEBOUNCED SITE)
   const renderTheme = () => {
-      // ... existing renderTheme Logic ...
-      const commonProps = { site: localSite, activePage: activePageData, packages, users, bookings, config, onBooking: onPublicBooking, onNavigate: (pageId: string) => { if (pageId === 'HOME') setActivePageId('home'); else setActivePageId(pageId); } };
+      const commonProps = { site: debouncedSite, activePage: activePageDataPreview, packages, users, bookings, config, onBooking: onPublicBooking, onNavigate: (pageId: string) => { if (pageId === 'HOME') setActivePageId('home'); else setActivePageId(pageId); } };
       let fontClass = 'font-sans';
-      if (localSite.font === 'SERIF') fontClass = 'font-serif';
-      if (localSite.font === 'DISPLAY') fontClass = 'font-display';
-      if (localSite.font === 'MONO') fontClass = 'font-mono';
+      if (debouncedSite.font === 'SERIF') fontClass = 'font-serif';
+      if (debouncedSite.font === 'DISPLAY') fontClass = 'font-display';
+      if (debouncedSite.font === 'MONO') fontClass = 'font-mono';
 
       const themeComponent = (() => {
-          switch(localSite.theme) {
+          switch(debouncedSite.theme) {
               case 'ETHEREAL': return <EtherealTheme {...commonProps} />;
               case 'VOGUE': return <VogueTheme {...commonProps} />;
               case 'MINIMAL': return <MinimalTheme {...commonProps} />;
@@ -178,15 +194,12 @@ const SiteBuilderView: React.FC<ExtendedSiteBuilderViewProps> = ({ config, packa
 
   // ... (renderSectionEditor remain same) ...
   const renderSectionEditor = (section: SiteSection) => {
-      // (Implementation same as before)
       return (
           <div className="space-y-3 p-4 bg-lumina-base border border-lumina-highlight rounded-xl mt-4 animate-in slide-in-from-top-2 duration-200">
-              {/* ... editor UI code ... */}
               <div className="flex justify-between items-center mb-2">
                   <span className="text-[10px] font-bold uppercase text-white bg-lumina-accent/20 text-lumina-accent px-2 py-0.5 rounded border border-lumina-accent/20">{section.type.replace('_', ' ')}</span>
                   <button onClick={() => handleDeleteSection(section.id)} className="text-lumina-muted hover:text-rose-500 transition-colors"><Trash2 size={14}/></button>
               </div>
-              {/* ... Inputs for headline, desc, image, items ... */}
               {section.type !== 'GALLERY' && section.type !== 'PRICING' && section.type !== 'TESTIMONIALS' && section.type !== 'FAQ' && (
                   <div><label className="text-[10px] text-lumina-muted uppercase block mb-1 font-bold">Headline</label><input value={section.content.headline || ''} onChange={(e) => handleUpdateSection(section.id, { headline: e.target.value })} className="w-full bg-lumina-surface border border-lumina-highlight rounded-lg p-2 text-xs text-white focus:border-lumina-accent outline-none"/></div>
               )}
@@ -276,7 +289,7 @@ const SiteBuilderView: React.FC<ExtendedSiteBuilderViewProps> = ({ config, packa
                     {[{ id: 'SECTIONS', icon: Layers, label: 'Blocks' }, { id: 'CONTENT', icon: Layout, label: 'Settings' }, { id: 'GALLERY', icon: ImageIcon, label: 'Gallery' }, { id: 'PAGES', icon: File, label: 'Pages' }].map((tab) => (<button key={tab.id} onClick={() => setActiveTab(tab.id as any)} className={`flex-1 py-3 flex flex-col items-center justify-center gap-1 text-[10px] font-bold uppercase tracking-wider border-b-2 transition-colors ${activeTab === tab.id ? 'border-lumina-accent text-lumina-accent bg-lumina-accent/5' : 'border-transparent text-lumina-muted hover:text-white hover:bg-lumina-highlight/30'}`}><tab.icon size={16} />{tab.label}</button>))}
                 </div>
 
-                {/* Tab Content */}
+                {/* Tab Content (Uses localSite for immediate input feedback) */}
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-6 bg-lumina-surface/50 pb-20 md:pb-4">
                     {activeTab === 'CONTENT' && (
                         <div className="space-y-6">
@@ -341,7 +354,7 @@ const SiteBuilderView: React.FC<ExtendedSiteBuilderViewProps> = ({ config, packa
             </div>
       </motion.div>
 
-      {/* --- PREVIEW AREA --- */}
+      {/* --- PREVIEW AREA (Using Debounced Data) --- */}
       <div className="flex-1 flex flex-col h-full bg-[#111] relative overflow-hidden">
           <div className="h-14 border-b border-lumina-highlight flex justify-between items-center bg-lumina-base z-10 shrink-0 px-4">
               <div className="flex gap-2 items-center">
@@ -351,7 +364,6 @@ const SiteBuilderView: React.FC<ExtendedSiteBuilderViewProps> = ({ config, packa
                   <a href={publicUrl} target="_blank" className="flex items-center gap-2 text-xs font-bold text-lumina-accent hover:underline bg-lumina-accent/10 px-3 py-1 rounded-full border border-lumina-accent/20"><Globe size={12} /> Live</a>
               </div>
               
-              {/* FULLSCREEN TOGGLE */}
               <button 
                   onClick={() => setIsFullscreen(!isFullscreen)} 
                   className={`p-2 rounded-lg transition-colors ${isFullscreen ? 'text-lumina-accent bg-lumina-highlight' : 'text-lumina-muted hover:text-white'}`}
@@ -367,7 +379,7 @@ const SiteBuilderView: React.FC<ExtendedSiteBuilderViewProps> = ({ config, packa
                   {previewMode === 'MOBILE' && <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-gray-900 rounded-b-xl z-50"></div>}
                   
                   {/* USING IFRAME COMPONENT FOR ISOLATION + CSS INJECTION */}
-                  <SitePreviewFrame className="w-full h-full bg-white" customCss={localSite.customCss}>
+                  <SitePreviewFrame className="w-full h-full bg-white" customCss={debouncedSite.customCss}>
                       {renderTheme()}
                   </SitePreviewFrame>
               </motion.div>

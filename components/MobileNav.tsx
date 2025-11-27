@@ -1,8 +1,8 @@
 
 import React from 'react';
-import { LayoutDashboard, CalendarDays, Layers, Wallet, Menu, X } from 'lucide-react';
+import { LayoutDashboard, CalendarDays, Layers, Wallet, Menu, X, Box, Users } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { SidebarProps } from '../types';
+import { SidebarProps, Role } from '../types';
 
 interface MobileNavProps extends SidebarProps {
   // Inherits props like onNavigate, currentView, etc.
@@ -11,20 +11,46 @@ interface MobileNavProps extends SidebarProps {
 const MobileNav: React.FC<MobileNavProps> = ({ onNavigate, currentView, bookings, currentUser, onLogout }) => {
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
 
-  const navItems = [
-    { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
-    { id: 'calendar', label: 'Schedule', icon: CalendarDays },
-    { id: 'production', label: 'Prod', icon: Layers },
-    { id: 'finance', label: 'Finance', icon: Wallet },
-  ];
+  // Dynamic Navigation based on Role
+  const getNavItems = (role: Role) => {
+      const baseItems = [
+          { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
+          { id: 'calendar', label: 'Schedule', icon: CalendarDays },
+      ];
 
-  const menuItems = [
-    { id: 'inventory', label: 'Inventory' },
-    { id: 'clients', label: 'Clients' },
-    { id: 'team', label: 'Team' },
-    { id: 'analytics', label: 'Analytics' },
-    { id: 'settings', label: 'Settings' },
-  ];
+      if (role === 'PHOTOGRAPHER' || role === 'EDITOR') {
+          return [
+              ...baseItems,
+              { id: 'production', label: 'Prod', icon: Layers },
+              { id: 'inventory', label: 'Assets', icon: Box },
+          ];
+      }
+
+      if (role === 'FINANCE') {
+          return [
+              ...baseItems,
+              { id: 'finance', label: 'Finance', icon: Wallet },
+              { id: 'clients', label: 'Clients', icon: Users },
+          ];
+      }
+
+      // Owner/Admin default
+      return [
+          ...baseItems,
+          { id: 'production', label: 'Prod', icon: Layers },
+          { id: 'finance', label: 'Finance', icon: Wallet },
+      ];
+  };
+
+  const navItems = getNavItems(currentUser.role);
+
+  // Remaining items go into the "More" menu
+  const allPossibleItems = ['dashboard', 'calendar', 'production', 'inventory', 'clients', 'team', 'finance', 'analytics', 'settings'];
+  const visibleIds = navItems.map(i => i.id);
+  const menuItems = allPossibleItems.filter(id => !visibleIds.includes(id)).map(id => ({
+      id,
+      label: id.charAt(0).toUpperCase() + id.slice(1) // Simple capitalization
+  }));
 
   const handleNav = (view: string) => {
     onNavigate(view);

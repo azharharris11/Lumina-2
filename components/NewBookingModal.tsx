@@ -98,7 +98,7 @@ const TimeAvailabilityBar = ({ date, studio, bookings, config, selectedTime, dur
 
 const NewBookingModal: React.FC<NewBookingModalProps> = ({ isOpen, onClose, photographers, accounts, bookings = [], clients = [], assets = [], config, onAddBooking, onAddClient, initialData, packages = [] }) => {
   const [step, setStep] = useState(1);
-  const [isQuickMode, setIsQuickMode] = useState(false); // NEW: Quick Mode Toggle
+  const [isQuickMode, setIsQuickMode] = useState(false);
   
   // Client State
   const [clientSearch, setClientSearch] = useState('');
@@ -130,8 +130,7 @@ const NewBookingModal: React.FC<NewBookingModalProps> = ({ isOpen, onClose, phot
             timeStart: initialData.time,
             studio: initialData.studio
         }));
-        // Always start at client selection for integrity
-        setStep(1);
+        // Note: We don't force step 1 anymore if checking availability
         setIsQuickMode(false);
     }
   }, [initialData, isOpen]);
@@ -157,7 +156,8 @@ const NewBookingModal: React.FC<NewBookingModalProps> = ({ isOpen, onClose, phot
           onAddClient(newClient);
           setSelectedClient(newClient);
           setIsCreatingClient(false);
-          if(!isQuickMode) setStep(2); // Auto advance only if normal mode
+          // Don't auto-advance in quick mode
+          if(!isQuickMode) setStep(2); 
       }
   };
 
@@ -196,10 +196,16 @@ const NewBookingModal: React.FC<NewBookingModalProps> = ({ isOpen, onClose, phot
   };
 
   const handleSubmit = () => {
-      // In Quick Mode, we might need to create a dummy client if none selected
+      // Validation
+      if (!selectedClient && !isQuickMode) {
+          setStep(1);
+          alert("Please select a client first.");
+          return;
+      }
+
       let finalClient = selectedClient;
       if (isQuickMode && !finalClient && clientSearch) {
-          // Auto-create dummy client
+          // Auto-create dummy client for quick mode
           finalClient = {
               id: `c-quick-${Date.now()}`,
               name: clientSearch,
@@ -213,7 +219,7 @@ const NewBookingModal: React.FC<NewBookingModalProps> = ({ isOpen, onClose, phot
 
       if (onAddBooking && finalClient) {
           const selectedPkg = availablePackages.find(p => p.id === bookingForm.packageId) || { name: 'Quick Book', features: [] };
-          const finalPrice = isQuickMode ? 0 : bookingForm.price; // Quick bookings might skip price initially or handle later
+          const finalPrice = isQuickMode ? 0 : bookingForm.price; 
 
           const newBooking: Booking = {
               id: `b-${Date.now()}`,
@@ -283,7 +289,7 @@ const NewBookingModal: React.FC<NewBookingModalProps> = ({ isOpen, onClose, phot
                         { n: 2, l: 'Details' },
                         { n: 3, l: 'Confirm' }
                     ].map((s, i) => (
-                        <div key={s.n} className="flex items-center">
+                        <button key={s.n} onClick={() => setStep(s.n)} className="flex items-center disabled:opacity-50">
                             <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-colors
                                 ${step === s.n ? 'bg-lumina-accent text-lumina-base' : step > s.n ? 'bg-emerald-500/20 text-emerald-400' : 'bg-lumina-highlight text-lumina-muted'}
                             `}>
@@ -291,7 +297,7 @@ const NewBookingModal: React.FC<NewBookingModalProps> = ({ isOpen, onClose, phot
                                 <span>{s.l}</span>
                             </div>
                             {i < 2 && <div className="w-8 h-px bg-lumina-highlight mx-2"></div>}
-                        </div>
+                        </button>
                     ))}
                 </div>
             )}
@@ -413,12 +419,20 @@ const NewBookingModal: React.FC<NewBookingModalProps> = ({ isOpen, onClose, phot
                                             ))}
                                         </div>
 
-                                        <div className="pt-4 border-t border-lumina-highlight">
+                                        <div className="pt-4 border-t border-lumina-highlight flex flex-col gap-3">
                                             <button 
                                                 onClick={() => setIsCreatingClient(true)}
                                                 className="w-full py-4 border border-dashed border-lumina-highlight rounded-xl text-lumina-muted hover:text-white hover:border-lumina-accent hover:bg-lumina-highlight/10 transition-all flex items-center justify-center gap-2 font-bold"
                                             >
                                                 <Plus size={18} /> Create New Client Profile
+                                            </button>
+                                            
+                                            {/* NEW: Check Schedule Button */}
+                                            <button 
+                                                onClick={() => setStep(2)}
+                                                className="w-full py-3 text-lumina-accent hover:underline text-sm font-bold flex items-center justify-center gap-2"
+                                            >
+                                                Skip to Check Availability <ArrowRight size={14}/>
                                             </button>
                                         </div>
                                     </div>
@@ -503,14 +517,20 @@ const NewBookingModal: React.FC<NewBookingModalProps> = ({ isOpen, onClose, phot
 
                                         {/* Client Summary Small */}
                                         <div className="p-4 bg-lumina-highlight/10 rounded-xl border border-lumina-highlight flex items-center justify-between">
-                                            <div className="flex items-center gap-3">
-                                                <img src={selectedClient?.avatar} className="w-8 h-8 rounded-full" />
-                                                <div>
-                                                    <p className="text-sm font-bold text-white">{selectedClient?.name}</p>
-                                                    <p className="text-xs text-lumina-muted">Client</p>
+                                            {selectedClient ? (
+                                                <div className="flex items-center gap-3">
+                                                    <img src={selectedClient.avatar} className="w-8 h-8 rounded-full" />
+                                                    <div>
+                                                        <p className="text-sm font-bold text-white">{selectedClient.name}</p>
+                                                        <p className="text-xs text-lumina-muted">Client</p>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                            <button onClick={() => setStep(1)} className="text-xs font-bold text-lumina-accent hover:underline">Change</button>
+                                            ) : (
+                                                <div className="text-sm text-lumina-muted italic">No client selected yet.</div>
+                                            )}
+                                            <button onClick={() => setStep(1)} className="text-xs font-bold text-lumina-accent hover:underline">
+                                                {selectedClient ? 'Change' : 'Select Client'}
+                                            </button>
                                         </div>
                                     </div>
 
@@ -583,6 +603,12 @@ const NewBookingModal: React.FC<NewBookingModalProps> = ({ isOpen, onClose, phot
                                     <div className="p-6 space-y-6">
                                         {/* Summary Table */}
                                         <div className="bg-lumina-surface rounded-xl border border-lumina-highlight p-4 space-y-3 text-sm">
+                                            <div className="flex justify-between">
+                                                <span className="text-lumina-muted">Client</span>
+                                                <span className={`font-bold ${selectedClient ? 'text-white' : 'text-rose-400'}`}>
+                                                    {selectedClient ? selectedClient.name : 'NO CLIENT SELECTED'}
+                                                </span>
+                                            </div>
                                             <div className="flex justify-between">
                                                 <span className="text-lumina-muted">Service Package</span>
                                                 <span className="text-white font-bold">{availablePackages.find(p => p.id === bookingForm.packageId)?.name}</span>

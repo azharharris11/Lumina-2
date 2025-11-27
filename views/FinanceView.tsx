@@ -4,14 +4,19 @@ import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { ArrowRightLeft, Wallet, FileText, AlertCircle, CheckCircle, ArrowUpRight, MessageCircle, FileInput, MinusCircle, CheckSquare, Search, Filter, Download, RotateCcw, Trash2, History, Upload, Repeat, Paperclip, ArrowDownLeft, Calendar, Edit2, Plus, X, Save, Percent, Target } from 'lucide-react';
-import { FinanceViewProps, Account } from '../types';
+import { FinanceViewProps, Account, Transaction } from '../types';
 import { STUDIO_CONFIG } from '../data';
 import InvoiceModal from '../components/InvoiceModal';
 import WhatsAppModal from '../components/WhatsAppModal';
 
 const Motion = motion as any;
 
-const FinanceView: React.FC<FinanceViewProps> = ({ accounts, metrics, bookings, users, transactions = [], onTransfer, onRecordExpense, onSettleBooking, onDeleteTransaction, config, onAddAccount, onUpdateAccount, showToast }) => {
+// Add update prop to interface
+interface ExtendedFinanceViewProps extends FinanceViewProps {
+    onUpdateTransaction?: (transaction: Transaction) => void;
+}
+
+const FinanceView: React.FC<ExtendedFinanceViewProps> = ({ accounts, metrics, bookings, users, transactions = [], onTransfer, onRecordExpense, onSettleBooking, onDeleteTransaction, onUpdateTransaction, config, onAddAccount, onUpdateAccount, showToast }) => {
   // ... state ...
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
@@ -26,6 +31,9 @@ const FinanceView: React.FC<FinanceViewProps> = ({ accounts, metrics, bookings, 
   const [selectedBookingForWA, setSelectedBookingForWA] = useState<any | null>(null);
   const [settleForm, setSettleForm] = useState<{ bookingId: string | null, amount: number, maxAmount: number, currentPaidAmount: number, accountId: string, mode: 'PAYMENT' | 'REFUND' }>({ bookingId: null, amount: 0, maxAmount: 0, currentPaidAmount: 0, accountId: accounts[0]?.id || '', mode: 'PAYMENT' });
   const [taxMode, setTaxMode] = useState<'UMKM' | 'NORMAL'>('UMKM'); 
+  
+  // Edit Transaction State
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
 
   // --- GOAL LOGIC ---
   const monthlyGoal = 100000000;
@@ -52,7 +60,6 @@ const FinanceView: React.FC<FinanceViewProps> = ({ accounts, metrics, bookings, 
           discountAmount = b.discount.type === 'PERCENT' ? subtotal * (b.discount.value / 100) : b.discount.value;
       }
       
-      // Use Math.round to handle float issues with cents/decimals in JS
       const afterDiscount = Math.max(0, subtotal - discountAmount);
       const taxAmount = Math.round(afterDiscount * (applicableTaxRate / 100));
       const grandTotal = afterDiscount + taxAmount;
@@ -94,6 +101,17 @@ const FinanceView: React.FC<FinanceViewProps> = ({ accounts, metrics, bookings, 
   const handleEditAccount = (acc: Account) => { setEditingAccount(acc); setAccountForm({ ...acc }); setShowAccountModal(true); };
   const handleOpenAddAccount = () => { setEditingAccount(null); setAccountForm({ name: '', type: 'BANK', balance: 0, accountNumber: '' }); setShowAccountModal(true); };
   const handleAccountSubmit = () => { if (editingAccount && onUpdateAccount) { onUpdateAccount({ ...editingAccount, ...accountForm } as Account); } else if (onAddAccount && accountForm.name) { onAddAccount({ id: `acc-${Date.now()}`, name: accountForm.name!, type: accountForm.type as any, balance: Number(accountForm.balance), accountNumber: accountForm.accountNumber } as Account); } setShowAccountModal(false); };
+
+  const handleUpdateTransactionSubmit = () => {
+      if (editingTransaction && onUpdateTransaction) {
+          onUpdateTransaction(editingTransaction);
+          setEditingTransaction(null);
+      }
+  };
+
+  const handleEditTransaction = (t: Transaction) => {
+      setEditingTransaction(t);
+  }
 
   // ... (Tax Logic omitted for brevity, same as previous) ...
 
@@ -165,12 +183,7 @@ const FinanceView: React.FC<FinanceViewProps> = ({ accounts, metrics, bookings, 
         {/* ... INVOICES Tab ... */}
         {activeTab === 'INVOICES' && (
             <Motion.div key="invoices" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-lumina-surface border border-lumina-highlight p-4 rounded-xl gap-4">
-                    <div className="flex bg-lumina-base p-1 rounded-lg border border-lumina-highlight w-full md:w-auto">
-                        <button onClick={() => setInvoiceFilter('UNPAID')} className={`flex-1 md:flex-none px-4 py-2 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-2 ${invoiceFilter === 'UNPAID' ? 'bg-lumina-highlight text-white' : 'text-lumina-muted hover:text-white'}`}><AlertCircle size={14} /> Outstanding</button>
-                        <button onClick={() => setInvoiceFilter('PAID')} className={`flex-1 md:flex-none px-4 py-2 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-2 ${invoiceFilter === 'PAID' ? 'bg-lumina-highlight text-emerald-400' : 'text-lumina-muted hover:text-white'}`}><History size={14} /> Paid History</button>
-                    </div>
-                </div>
+                {/* ... existing invoice content ... */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {displayBookings.map((booking) => {
                         const { grandTotal, dueAmount } = getBookingFinancials(booking);
@@ -214,7 +227,7 @@ const FinanceView: React.FC<FinanceViewProps> = ({ accounts, metrics, bookings, 
                                 <th className="p-4 font-sans">Account</th>
                                 <th className="p-4 text-right font-sans">Amount</th>
                                 <th className="p-4 text-center font-sans">Receipt</th>
-                                <th className="p-4 font-sans"></th>
+                                <th className="p-4 font-sans">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-lumina-highlight/50">
@@ -226,7 +239,10 @@ const FinanceView: React.FC<FinanceViewProps> = ({ accounts, metrics, bookings, 
                                     <td className="p-4 text-xs text-lumina-muted font-sans">{accounts.find(a => a.id === t.accountId)?.name}</td>
                                     <td className={`p-4 text-right font-mono font-bold font-sans ${t.type === 'INCOME' ? 'text-emerald-400' : 'text-rose-400'}`}>{t.type === 'INCOME' ? '+' : '-'} Rp {t.amount.toLocaleString()}</td>
                                     <td className="p-4 text-center">{t.receiptUrl ? <a href={t.receiptUrl} target="_blank" className="text-blue-400 hover:underline text-xs flex items-center justify-center gap-1"><Paperclip size={12}/> View</a> : <span className="text-lumina-muted/30">-</span>}</td>
-                                    <td className="p-4 text-right"><button onClick={() => onDeleteTransaction && onDeleteTransaction(t.id)} className="text-lumina-muted hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={14}/></button></td>
+                                    <td className="p-4 text-right flex justify-end gap-2">
+                                        <button onClick={() => handleEditTransaction(t)} className="text-lumina-muted hover:text-white transition-opacity"><Edit2 size={14}/></button>
+                                        <button onClick={() => onDeleteTransaction && onDeleteTransaction(t.id)} className="text-lumina-muted hover:text-rose-500 transition-opacity"><Trash2 size={14}/></button>
+                                    </td>
                                 </tr>
                             ))}
                         </tbody>
@@ -248,9 +264,12 @@ const FinanceView: React.FC<FinanceViewProps> = ({ accounts, metrics, bookings, 
                             </div>
                             <div className="flex justify-between items-center text-xs">
                                 <span className="bg-lumina-highlight px-2 py-1 rounded text-lumina-muted">{t.category}</span>
-                                {onDeleteTransaction && (
-                                    <button onClick={() => onDeleteTransaction(t.id)} className="text-lumina-muted hover:text-rose-500"><Trash2 size={14}/></button>
-                                )}
+                                <div className="flex gap-3">
+                                    <button onClick={() => handleEditTransaction(t)} className="text-lumina-muted hover:text-white"><Edit2 size={14}/></button>
+                                    {onDeleteTransaction && (
+                                        <button onClick={() => onDeleteTransaction(t.id)} className="text-lumina-muted hover:text-rose-500"><Trash2 size={14}/></button>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     ))}
@@ -262,6 +281,38 @@ const FinanceView: React.FC<FinanceViewProps> = ({ accounts, metrics, bookings, 
       {/* ... (Modals remain same) ... */}
       <InvoiceModal isOpen={!!selectedBookingForInvoice} onClose={() => setSelectedBookingForInvoice(null)} booking={selectedBookingForInvoice} config={config} />
       <WhatsAppModal isOpen={!!selectedBookingForWA} onClose={() => setSelectedBookingForWA(null)} booking={selectedBookingForWA} config={config} />
+
+      {/* Edit Transaction Modal */}
+      <AnimatePresence>
+          {editingTransaction && (
+              <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+                  <Motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} onClick={() => setEditingTransaction(null)} className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
+                  <Motion.div initial={{scale:0.95, opacity:0}} animate={{scale:1, opacity:1}} exit={{scale:0.95, opacity:0}} className="relative bg-lumina-surface border border-lumina-highlight w-full max-w-sm rounded-2xl p-6 shadow-2xl">
+                      <h3 className="text-lg font-bold text-white mb-4">Edit Transaction</h3>
+                      <div className="space-y-4">
+                          <div>
+                              <label className="text-xs font-bold text-lumina-muted uppercase mb-1 block">Description</label>
+                              <input className="w-full bg-lumina-base border border-lumina-highlight rounded-lg p-2 text-white text-sm" value={editingTransaction.description} onChange={e => setEditingTransaction({...editingTransaction, description: e.target.value})} />
+                          </div>
+                          <div>
+                              <label className="text-xs font-bold text-lumina-muted uppercase mb-1 block">Amount</label>
+                              <input type="number" className="w-full bg-lumina-base border border-lumina-highlight rounded-lg p-2 text-white text-sm" value={editingTransaction.amount} onChange={e => setEditingTransaction({...editingTransaction, amount: Number(e.target.value)})} />
+                          </div>
+                          <div>
+                              <label className="text-xs font-bold text-lumina-muted uppercase mb-1 block">Category</label>
+                              <select className="w-full bg-lumina-base border border-lumina-highlight rounded-lg p-2 text-white text-sm" value={editingTransaction.category} onChange={e => setEditingTransaction({...editingTransaction, category: e.target.value})}>
+                                  {config.expenseCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                              </select>
+                          </div>
+                      </div>
+                      <div className="flex justify-end gap-2 mt-6">
+                          <button onClick={() => setEditingTransaction(null)} className="px-4 py-2 text-lumina-muted font-bold text-sm">Cancel</button>
+                          <button onClick={handleUpdateTransactionSubmit} className="px-4 py-2 bg-emerald-500 text-white font-bold rounded-lg text-sm">Save</button>
+                      </div>
+                  </Motion.div>
+              </div>
+          )}
+      </AnimatePresence>
     </div>
   );
 };

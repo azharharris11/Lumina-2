@@ -2,8 +2,8 @@
 // ... existing imports ...
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Booking, ProjectStatus, User, StudioConfig, Package } from '../types';
-import { Clock, CheckCircle2, ChevronRight, AlertCircle, GripVertical, CheckSquare, List, Columns } from 'lucide-react';
+import { Booking, ProjectStatus, User, StudioConfig, Package, BookingTask } from '../types';
+import { Clock, CheckCircle2, ChevronRight, AlertCircle, GripVertical, CheckSquare, List, Columns, ArrowRightLeft, Plus } from 'lucide-react';
 import { PACKAGES } from '../data';
 
 const Motion = motion as any;
@@ -20,8 +20,10 @@ const ProductionView: React.FC<ProductionViewProps> = ({ bookings, onSelectBooki
   const [filterMode, setFilterMode] = useState<'ALL' | 'MINE'>('ALL');
   const [draggedBookingId, setDraggedBookingId] = useState<string | null>(null);
   const [activeDropColumn, setActiveDropColumn] = useState<ProjectStatus | null>(null);
-  // Default to LIST view on mobile if window width is small (initial state could be dynamic, but simple default works)
   const [viewFormat, setViewFormat] = useState<'BOARD' | 'LIST'>(window.innerWidth < 768 ? 'LIST' : 'BOARD');
+  
+  // Mobile Move State
+  const [movingBooking, setMovingBooking] = useState<Booking | null>(null);
 
   const columns: { id: ProjectStatus; label: string; color: string }[] = [
     { id: 'SHOOTING', label: 'To Shoot', color: 'indigo' },
@@ -40,15 +42,58 @@ const ProductionView: React.FC<ProductionViewProps> = ({ bookings, onSelectBooki
     }).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   };
 
-  // ... (Drag handlers remain same) ...
+  // --- AUTOMATION LOGIC ---
+  const applyWorkflowAutomation = (booking: Booking, newStatus: ProjectStatus): Booking => {
+      let updatedBooking = { ...booking, status: newStatus };
+      
+      // Find automation rule for this status
+      const automation = config.workflowAutomations?.find(a => 
+          a.triggerStatus === newStatus && 
+          (!a.triggerPackageId || a.triggerPackageId === booking.packageId)
+      );
+
+      if (automation && automation.tasks.length > 0) {
+          const newTasks: BookingTask[] = automation.tasks.map(t => ({
+              id: `t-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              title: t,
+              completed: false
+          }));
+          
+          // Append new tasks to existing ones
+          updatedBooking.tasks = [...(updatedBooking.tasks || []), ...newTasks];
+          
+          // Optional: Assign User
+          if (automation.assignToUserId) {
+              // If moving to editing/culling, assign editor. If shooting, assign photographer.
+              if (['CULLING', 'EDITING'].includes(newStatus)) {
+                  updatedBooking.editorId = automation.assignToUserId;
+              }
+          }
+      }
+      return updatedBooking;
+  };
+
   const handleDragStart = (e: React.DragEvent, bookingId: string) => { setDraggedBookingId(bookingId); e.dataTransfer.setData('bookingId', bookingId); };
   const handleDragOver = (e: React.DragEvent, status: ProjectStatus) => { e.preventDefault(); setActiveDropColumn(status); };
+  
   const handleDrop = (e: React.DragEvent, status: ProjectStatus) => {
       e.preventDefault();
       const bookingId = e.dataTransfer.getData('bookingId');
       const booking = bookings.find(b => b.id === bookingId);
-      if (booking && booking.status !== status && onUpdateBooking) { onUpdateBooking({ ...booking, status }); }
+      
+      if (booking && booking.status !== status && onUpdateBooking) { 
+          const updatedBooking = applyWorkflowAutomation(booking, status);
+          onUpdateBooking(updatedBooking); 
+      }
       setActiveDropColumn(null); setDraggedBookingId(null);
+  };
+
+  const handleMobileMove = (newStatus: ProjectStatus) => {
+      if (movingBooking && onUpdateBooking) {
+          const updatedBooking = applyWorkflowAutomation(movingBooking, newStatus);
+          onUpdateBooking(updatedBooking);
+          setMovingBooking(null);
+      }
   };
 
   const getDeadlineColor = (date: string) => {
@@ -61,14 +106,13 @@ const ProductionView: React.FC<ProductionViewProps> = ({ bookings, onSelectBooki
   };
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col relative">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 shrink-0 gap-4">
         <div>
           <h1 className="text-3xl md:text-4xl font-display font-bold text-white mb-2">Production Board</h1>
           <p className="text-lumina-muted">Track post-production workflow.</p>
         </div>
         <div className="flex gap-2">
-            {/* View Toggle */}
             <div className="bg-lumina-surface border border-lumina-highlight rounded-lg p-1 flex">
                 <button onClick={() => setViewFormat('BOARD')} className={`p-2 rounded ${viewFormat === 'BOARD' ? 'bg-lumina-highlight text-white' : 'text-lumina-muted'}`}><Columns size={18}/></button>
                 <button onClick={() => setViewFormat('LIST')} className={`p-2 rounded ${viewFormat === 'LIST' ? 'bg-lumina-highlight text-white' : 'text-lumina-muted'}`}><List size={18}/></button>
@@ -92,7 +136,6 @@ const ProductionView: React.FC<ProductionViewProps> = ({ bookings, onSelectBooki
       </div>
 
       {viewFormat === 'BOARD' ? (
-          /* Kanban Board Container */
           <div className="flex-1 overflow-x-auto overflow-y-hidden flex gap-4 pb-4 snap-x snap-mandatory">
             {columns.map((col) => {
                 const columnBookings = getColumnBookings(col.id);
@@ -130,6 +173,20 @@ const ProductionView: React.FC<ProductionViewProps> = ({ bookings, onSelectBooki
                                         {booking.photographerId === currentUser?.id && <div className="px-1.5 py-0.5 bg-indigo-500/20 text-indigo-300 rounded text-[9px] font-bold">YOU</div>}
                                     </div>
                                     <h4 className="font-bold text-white text-base mb-1 truncate">{booking.clientName}</h4>
+                                    
+                                    {/* Task Progress Preview */}
+                                    {(booking.tasks || []).length > 0 && (
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <div className="flex-1 h-1 bg-lumina-surface rounded-full overflow-hidden">
+                                                <div 
+                                                    className="h-full bg-lumina-accent" 
+                                                    style={{width: `${(booking.tasks!.filter(t=>t.completed).length / booking.tasks!.length) * 100}%`}}
+                                                ></div>
+                                            </div>
+                                            <span className="text-[9px] text-lumina-muted">{booking.tasks!.filter(t=>t.completed).length}/{booking.tasks!.length}</span>
+                                        </div>
+                                    )}
+
                                     <div className="flex items-center gap-2 text-xs text-lumina-muted mb-3 font-sans">
                                         <Clock size={12} />
                                         <span>{new Date(booking.date).toLocaleDateString()}</span>
@@ -164,15 +221,20 @@ const ProductionView: React.FC<ProductionViewProps> = ({ bookings, onSelectBooki
                           {items.map(booking => (
                               <div 
                                 key={booking.id} 
-                                onClick={() => onSelectBooking(booking.id)}
                                 className="bg-lumina-surface border border-lumina-highlight p-4 rounded-xl flex items-center justify-between active:bg-lumina-highlight/30 transition-colors"
                               >
-                                  <div>
+                                  <div onClick={() => onSelectBooking(booking.id)} className="flex-1">
                                       <h4 className="font-bold text-white text-sm">{booking.clientName}</h4>
                                       <p className="text-xs text-lumina-muted">{booking.package} • {new Date(booking.date).toLocaleDateString()}</p>
                                   </div>
-                                  <div className="flex items-center gap-3">
-                                      {booking.photographerId === currentUser?.id && <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-1 rounded font-bold">YOU</span>}
+                                  <div className="flex items-center gap-2">
+                                      {/* Mobile Move Button */}
+                                      <button 
+                                        onClick={(e) => { e.stopPropagation(); setMovingBooking(booking); }}
+                                        className="p-2 bg-lumina-base border border-lumina-highlight rounded-lg text-lumina-muted hover:text-white"
+                                      >
+                                          <ArrowRightLeft size={16} />
+                                      </button>
                                       <ChevronRight size={16} className="text-lumina-muted"/>
                                   </div>
                               </div>
@@ -182,6 +244,34 @@ const ProductionView: React.FC<ProductionViewProps> = ({ bookings, onSelectBooki
               })}
           </div>
       )}
+
+      {/* Mobile Move Modal */}
+      <AnimatePresence>
+          {movingBooking && (
+              <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4">
+                  <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setMovingBooking(null)}></div>
+                  <Motion.div 
+                    initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+                    className="bg-lumina-surface border border-lumina-highlight w-full max-w-sm rounded-2xl p-6 relative z-10"
+                  >
+                      <h3 className="font-bold text-white mb-4">Move {movingBooking.clientName} to...</h3>
+                      <div className="space-y-2">
+                          {columns.map(col => (
+                              <button
+                                key={col.id}
+                                onClick={() => handleMobileMove(col.id)}
+                                className={`w-full p-3 rounded-xl text-left font-bold text-sm flex items-center justify-between border ${movingBooking.status === col.id ? 'bg-lumina-accent/10 border-lumina-accent text-lumina-accent' : 'bg-lumina-base border-lumina-highlight text-lumina-muted'}`}
+                              >
+                                  <span>{col.label}</span>
+                                  {movingBooking.status === col.id && <CheckCircle2 size={16} />}
+                              </button>
+                          ))}
+                      </div>
+                      <button onClick={() => setMovingBooking(null)} className="w-full mt-4 py-3 text-lumina-muted font-bold">Cancel</button>
+                  </Motion.div>
+              </div>
+          )}
+      </AnimatePresence>
     </div>
   );
 };
